@@ -42,7 +42,11 @@ jobs:
       - name: Archive binaries
         run: |
           mkdir -p release
-          cp target/${{ matrix.target }}/release/unifi-tui release/unifi-tui-${{ matrix.target }}
+          if [ "${{ matrix.target }}" = "x86_64-pc-windows-gnu" ]; then
+            cp target/${{ matrix.target }}/release/unifi-tui.exe release/unifi-tui-${{ matrix.target }}.exe
+          else
+            cp target/${{ matrix.target }}/release/unifi-tui release/unifi-tui-${{ matrix.target }}
+          fi
 
   release:
     runs-on: ubuntu-latest
