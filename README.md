@@ -8,7 +8,7 @@ A terminal user interface (TUI) using the [unifi-rs](https://crates.io/crates/un
 
 Currently, a work in progress. Intend to add more features as the unifi-rs library gets more features. 
 
-Can view sites, devices, clients.
+Can view sites, unifi devices, clients and stats.
 
 ## Usage
 ```shell
@@ -24,5 +24,16 @@ unifi-tui
 ```
 
 ## Screenshots
-![Clients](./doc/clients.png)
+### Sites
+![Sites](./doc/sites.png)
+
+### Unifi Devices
 ![Devices](./doc/devices.png)
+![DeviceDetail](./doc/device-details.png)
+
+### Clients
+![Clients](./doc/clients.png)
+![ClientDetail](./doc/client-details.png)
+
+### Stats
+![Stats](./doc/stats.png)
