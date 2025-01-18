@@ -608,8 +608,8 @@ async fn handle_client_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
     Ok(())
 }
 fn draw_search_bar(f: &mut Frame, area: Rect, app: &App) {
-    let area = centered_rect(60, 3, area);
-    let search_widget = Paragraph::new(format!("Search: {}", app.search_query))
+    let area = centered_rect(60, 10, area);
+    let search_widget = Paragraph::new(format!("{}", app.search_query))
         .block(Block::default().borders(Borders::ALL).title("Search"))
         .style(Style::default().fg(Color::Yellow));
     f.render_widget(Clear, area);
