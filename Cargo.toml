@@ -18,5 +18,7 @@ ratatui = "0.29.0"
 crossterm = "0.28.1"
 anyhow = "1.0.95"
 clap = { version = "4.5.26", features = ["derive", "env"] }
+chrono = "0.4.39"
+uuid = { version = "1.12.0", features = ["v4"] }
 
 

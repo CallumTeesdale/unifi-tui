@@ -36,9 +36,6 @@ jobs:
       - name: Build with cross
         run: cross build --release --target ${{ matrix.target }}
 
-      - name: List target directory
-        run: ls -R target
-
       - name: Archive binaries
         run: |
           mkdir -p release
@@ -70,7 +67,7 @@ jobs:
           OUTPUT: CHANGELOG.md
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ steps.version.outputs.version }}
           body_path: CHANGELOG.md

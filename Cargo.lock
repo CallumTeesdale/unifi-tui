@@ -1561,14 +1561,16 @@ dependencies = [
 
 [[package]]
 name = "unifi-tui"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "crossterm",
  "ratatui",
  "tokio",
  "unifi-rs",
+ "uuid",
 ]
 
 [[package]]
