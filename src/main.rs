@@ -6,7 +6,10 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{prelude::*, widgets::*};
-use std::{io, time::{Duration, Instant}};
+use std::{
+    io,
+    time::{Duration, Instant},
+};
 use unifi_rs::{UnifiClient, UnifiClientBuilder};
 
 #[derive(Parser)]
@@ -60,7 +63,6 @@ impl App {
 
     async fn refresh_data(&mut self) -> Result<()> {
         if self.last_update.elapsed() >= self.refresh_interval {
-
             let sites = self.client.list_sites(None, None).await?;
             self.sites = sites.data;
 
@@ -117,17 +119,18 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
         terminal.draw(|f| {
             let size = f.area();
 
-
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .margin(1)
-                .constraints([
-                    Constraint::Length(3),
-                    Constraint::Min(0),
-                    Constraint::Length(3),
-                ].as_ref())
+                .constraints(
+                    [
+                        Constraint::Length(3),
+                        Constraint::Min(0),
+                        Constraint::Length(3),
+                    ]
+                    .as_ref(),
+                )
                 .split(size);
-
 
             let menu = menu_titles
                 .iter()
@@ -140,7 +143,6 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
                 .highlight_style(Style::default().bold());
             f.render_widget(tabs, chunks[0]);
 
-
             match app.current_tab {
                 0 => render_sites(f, chunks[1], &app),
                 1 => render_devices(f, chunks[1], &app),
@@ -148,7 +150,6 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
                 3 => render_stats(f, chunks[1], &app),
                 _ => {}
             }
-
 
             let help_text = vec![
                 Line::from("Press 'q' to quit"),
@@ -187,18 +188,19 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
 }
 
 fn render_sites(f: &mut Frame, area: Rect, app: &App) {
-    let sites: Vec<Row> = app.sites.iter().map(|site| {
-        let cells = vec![
-            Cell::from(site.id.to_string()),
-            Cell::from(site.name.as_deref().unwrap_or("Unnamed")),
-        ];
-        Row::new(cells)
-    }).collect();
+    let sites: Vec<Row> = app
+        .sites
+        .iter()
+        .map(|site| {
+            let cells = vec![
+                Cell::from(site.id.to_string()),
+                Cell::from(site.name.as_deref().unwrap_or("Unnamed")),
+            ];
+            Row::new(cells)
+        })
+        .collect();
 
-    let widths = &[
-        Constraint::Percentage(30),
-        Constraint::Percentage(70),
-    ];
+    let widths = &[Constraint::Percentage(30), Constraint::Percentage(70)];
 
     let table = Table::new(sites, widths)
         .header(Row::new(vec!["ID", "Name"]))
@@ -208,16 +210,20 @@ fn render_sites(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_devices(f: &mut Frame, area: Rect, app: &App) {
-    let devices: Vec<Row> = app.devices.iter().map(|device| {
-        let cells = vec![
-            Cell::from(device.name.clone()),
-            Cell::from(device.model.clone()),
-            Cell::from(device.mac_address.clone()),
-            Cell::from(device.ip_address.clone()),
-            Cell::from(format!("{:?}", device.state)),
-        ];
-        Row::new(cells)
-    }).collect();
+    let devices: Vec<Row> = app
+        .devices
+        .iter()
+        .map(|device| {
+            let cells = vec![
+                Cell::from(device.name.clone()),
+                Cell::from(device.model.clone()),
+                Cell::from(device.mac_address.clone()),
+                Cell::from(device.ip_address.clone()),
+                Cell::from(format!("{:?}", device.state)),
+            ];
+            Row::new(cells)
+        })
+        .collect();
 
     let widths = &[
         Constraint::Percentage(20),
@@ -235,30 +241,42 @@ fn render_devices(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_clients(f: &mut Frame, area: Rect, app: &App) {
-    let clients: Vec<Row> = app.clients.iter().map(|client| {
-        let (name, ip, mac, r#type) = match client {
-            unifi_rs::ClientOverview::Wired(c) => (
-                c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                c.base.ip_address.as_deref().unwrap_or("Unknown").to_string(),
-                c.mac_address.clone(),
-                "Wired".to_string(),
-            ),
-            unifi_rs::ClientOverview::Wireless(c) => (
-                c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                c.base.ip_address.as_deref().unwrap_or("Unknown").to_string(),
-                c.mac_address.clone(),
-                "Wireless".to_string(),
-            ),
-            _ => (
-                "Unknown".to_string(),
-                "Unknown".to_string(),
-                "Unknown".to_string(),
-                "Other".to_string(),
-            ),
-        };
+    let clients: Vec<Row> = app
+        .clients
+        .iter()
+        .map(|client| {
+            let (name, ip, mac, r#type) = match client {
+                unifi_rs::ClientOverview::Wired(c) => (
+                    c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
+                    c.base
+                        .ip_address
+                        .as_deref()
+                        .unwrap_or("Unknown")
+                        .to_string(),
+                    c.mac_address.clone(),
+                    "Wired".to_string(),
+                ),
+                unifi_rs::ClientOverview::Wireless(c) => (
+                    c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
+                    c.base
+                        .ip_address
+                        .as_deref()
+                        .unwrap_or("Unknown")
+                        .to_string(),
+                    c.mac_address.clone(),
+                    "Wireless".to_string(),
+                ),
+                _ => (
+                    "Unknown".to_string(),
+                    "Unknown".to_string(),
+                    "Unknown".to_string(),
+                    "Other".to_string(),
+                ),
+            };
 
-        Row::new(vec![name, ip, mac, r#type])
-    }).collect();
+            Row::new(vec![name, ip, mac, r#type])
+        })
+        .collect();
 
     let widths = &[
         Constraint::Percentage(25),
