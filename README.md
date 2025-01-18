@@ -16,6 +16,14 @@ Can view sites, devices, clients.
 unifi-tui --url {url} --api-key {api-key} --insecure
 ```
 
+Or with environment variables
+```shell
+export UNIFI_URL={url}
+export UNIFI_API_KEY={api-key}
+
+unifi-tui
+```
+
 ## Screenshots
 ![Clients](./doc/clients.png)
 ![Devices](./doc/devices.png)
