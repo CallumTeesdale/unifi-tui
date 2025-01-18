@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.17] - 2025-01-18
+
+### Ci
+
+- Come back to apple once find suitable image
+
 ## [0.1.16] - 2025-01-18
 
 ### Documentation
