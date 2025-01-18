@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use crate::app::{App, DialogType};
 use crate::error::Result;
 
@@ -29,7 +29,7 @@ pub async fn handle_global_input(app: &mut App, key: KeyEvent) -> Result<bool> {
             Ok(true)
         }
         KeyCode::Char('r') => {
-            app.state.last_update = app.state.last_update - app.state.refresh_interval;
+            app.state.last_update -= app.state.refresh_interval;
             Ok(true)
         }
         _ => Ok(false)
@@ -105,11 +105,8 @@ pub async fn handle_device_detail_input(app: &mut App, key: KeyEvent) -> Result<
 }
 
 pub async fn handle_client_detail_input(app: &mut App, key: KeyEvent) -> Result<()> {
-    match key.code {
-        KeyCode::Esc => {
-            app.back_to_overview();
-        }
-        _ => {}
+    if key.code == KeyCode::Esc {
+        app.back_to_overview();
     }
     Ok(())
 }
