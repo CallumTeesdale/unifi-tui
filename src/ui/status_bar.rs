@@ -1,7 +1,6 @@
 use crate::app::{App};
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
-use ratatui::text::Line;
+use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use unifi_rs::DeviceState;

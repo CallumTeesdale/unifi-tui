@@ -1,10 +1,10 @@
 use chrono::Utc;
 use crate::state::AppState;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Axis, Block, Borders, Cell, Chart, Dataset, Gauge, GraphType, Paragraph, Row, Table};
-use ratatui::{symbols, Frame};
+use ratatui::widgets::{Block, Borders, Gauge, Paragraph};
+use ratatui::Frame;
 use unifi_rs::ClientOverview;
 use uuid::Uuid;
 
