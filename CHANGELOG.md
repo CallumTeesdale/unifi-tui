@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.23] - 2025-01-18
+
+### Ci
+
+- Release names
+- Release names
+
 ## [0.1.22] - 2025-01-18
 
 ### Bug Fixes
