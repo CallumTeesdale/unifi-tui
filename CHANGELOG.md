@@ -1,6 +1,20 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.16] - 2025-01-18
+
+### Documentation
+
+- Remove docs from readme. Not a library
+
+### Miscellaneous Tasks
+
+- Clippy fix
+
+### Ci
+
+- Can we cross build?
+
 ## [0.1.15] - 2025-01-18
 
 ### Miscellaneous Tasks
