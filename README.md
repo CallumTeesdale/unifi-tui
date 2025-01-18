@@ -1,4 +1,4 @@
-# unifi-rs
+# unifi-tui
 
 [![Crates.io](https://img.shields.io/crates/v/unifi-tui)](https://crates.io/crates/unifi-tui)
 [![Documentation](https://docs.rs/unifi-tui/badge.svg)](https://docs.rs/unifi-tui)
