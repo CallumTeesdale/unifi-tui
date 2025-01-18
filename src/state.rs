@@ -28,6 +28,12 @@ pub struct NetworkStats {
     pub device_stats: Vec<DeviceMetrics>,
 }
 
+pub struct NetworkThroughput {
+    pub timestamp: DateTime<Utc>,
+    pub tx_rate: f64,  // in Mbps
+    pub rx_rate: f64,  // in Mbps
+}
+
 #[derive(Clone)]
 pub struct DeviceMetrics {
     pub device_id: Uuid,
@@ -54,6 +60,7 @@ pub struct AppState {
     pub refresh_interval: Duration,
     pub error_message: Option<String>,
     pub error_timestamp: Option<Instant>,
+    pub network_history: HashMap<Uuid, VecDeque<NetworkThroughput>>,
 }
 
 impl AppState {
@@ -73,7 +80,27 @@ impl AppState {
             refresh_interval: Duration::from_secs(5),
             error_message: None,
             error_timestamp: None,
+            network_history: HashMap::new(),
         })
+    }
+
+    pub fn update_network_history(&mut self, device_id: Uuid, stats: &DeviceStatistics) {
+        if let Some(uplink) = &stats.uplink {
+            let history = self.network_history
+                .entry(device_id)
+                .or_insert_with(|| VecDeque::with_capacity(60)); // Keep last 5 minutes (60 points @ 5s)
+
+            let throughput = NetworkThroughput {
+                timestamp: Utc::now(),
+                tx_rate: uplink.tx_rate_bps as f64 / 1_000_000.0, // Convert to Mbps
+                rx_rate: uplink.rx_rate_bps as f64 / 1_000_000.0,
+            };
+
+            if history.len() >= 60 {
+                history.pop_front();
+            }
+            history.push_back(throughput);
+        }
     }
 
     pub fn set_error(&mut self, message: String) {
@@ -124,6 +151,13 @@ impl AppState {
             }
             if let Ok(stats) = self.client.get_device_statistics(site_id, device.id).await {
                 self.device_stats.insert(device.id, stats);
+            }
+        }
+
+        for device in &devices.data {
+            if let Ok(stats) = self.client.get_device_statistics(site_id, device.id).await {
+                self.device_stats.insert(device.id, stats.clone());
+                self.update_network_history(device.id, &stats);
             }
         }
 

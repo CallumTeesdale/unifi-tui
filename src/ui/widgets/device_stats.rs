@@ -1,4 +1,4 @@
-use crate::state::AppState;
+use crate::state::{AppState, NetworkThroughput};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -84,10 +84,10 @@ impl DeviceStatsView {
                     .ratio(stats.memory_utilization_pct.unwrap_or(0.0) / 100.0)
                     .label(memory_usage);
 
+
                 f.render_widget(cpu, chunks[0]);
                 f.render_widget(memory, chunks[1]);
-
-                // Additional device info
+                
                 let info_text = vec![
                     Line::from(vec![
                         Span::raw("Firmware: "),
@@ -113,15 +113,25 @@ impl DeviceStatsView {
     }
 
     fn render_network_stats(&self, f: &mut Frame, area: Rect, app_state: &AppState) {
-        if let Some(stats) = app_state.device_stats.get(&self.device_id) {
-            if let Some(uplink) = &stats.uplink {
-                let tx_mbps = uplink.tx_rate_bps as f64 / 1_000_000.0;
-                let rx_mbps = uplink.rx_rate_bps as f64 / 1_000_000.0;
+        if let Some(history) = app_state.network_history.get(&self.device_id) {
+            let history_vec: Vec<&NetworkThroughput> = history.iter().collect();
 
-                let tx_data = vec![(0.0, tx_mbps)];
-                let rx_data = vec![(0.0, rx_mbps)];
+            if !history_vec.is_empty() {
+                let tx_data: Vec<(f64, f64)> = history_vec.iter()
+                    .enumerate()
+                    .map(|(i, point)| (i as f64, point.tx_rate))
+                    .collect();
 
-                let dataset = vec![
+                let rx_data: Vec<(f64, f64)> = history_vec.iter()
+                    .enumerate()
+                    .map(|(i, point)| (i as f64, point.rx_rate))
+                    .collect();
+                
+                let max_rate = history_vec.iter()
+                    .map(|point| point.tx_rate.max(point.rx_rate))
+                    .fold(0.0, f64::max);
+
+                let datasets = vec![
                     Dataset::default()
                         .name("TX")
                         .marker(symbols::Marker::Dot)
@@ -135,15 +145,35 @@ impl DeviceStatsView {
                         .style(Style::default().fg(Color::Red))
                         .data(&rx_data),
                 ];
+                
+                let x_labels = vec![
+                    Line::from("5m ago"),
+                    Line::from("2.5m ago"),
+                    Line::from("now"),
+                ];
+                
+                let y_max = format!("{:.1} Mbps", max_rate);
+                let y_labels = vec![
+                    Line::from("0"),
+                    Line::from(y_max.as_str()),
+                ];
 
-                let chart = Chart::new(dataset)
-                    .block(
-                        Block::default()
-                            .title("Network Throughput")
-                            .borders(Borders::ALL),
+                let chart = Chart::new(datasets)
+                    .block(Block::default()
+                        .title("Network Throughput")
+                        .borders(Borders::ALL))
+                    .x_axis(
+                        Axis::default()
+                            .title("Time")
+                            .bounds([0.0, 59.0])
+                            .labels(x_labels)
                     )
-                    .x_axis(Axis::default().title("Time").bounds([0.0, 60.0]))
-                    .y_axis(Axis::default().title("Mbps").bounds([0.0, 1000.0]));
+                    .y_axis(
+                        Axis::default()
+                            .title("Mbps")
+                            .bounds([0.0, max_rate * 1.1])
+                            .labels(y_labels)
+                    );
 
                 f.render_widget(chart, area);
             }

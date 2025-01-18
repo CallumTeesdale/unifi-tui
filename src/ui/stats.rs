@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{App};
 use crate::state::{DeviceMetrics, NetworkStats};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
@@ -134,19 +134,20 @@ fn render_client_history(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .title("Client History")
-                .borders(Borders::ALL),
+                .borders(Borders::ALL)
+                .border_style(Style::default())
         )
         .x_axis(
             Axis::default()
                 .title("Time")
-                .style(Style::default().fg(Color::Gray))
+                .style(Style::default())
                 .bounds([0.0, (client_history.len() - 1) as f64])
                 .labels(x_axis_labels),
         )
         .y_axis(
             Axis::default()
                 .title("Clients")
-                .style(Style::default().fg(Color::Gray))
+                .style(Style::default())
                 .bounds([0.0, max_y * 1.1])
                 .labels(y_axis_labels),
         );

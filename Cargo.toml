@@ -12,7 +12,7 @@ keywords = ["unifi", "networking", "api-client", "tui"]
 categories = ["api-bindings", "network-programming"]
 
 [dependencies]
-unifi-rs = "0.1.13"
+unifi-rs = "0.1.14"
 tokio = { version = "1.43.0", features = ["full"] }
 ratatui = "0.29.0"
 crossterm = "0.28.1"

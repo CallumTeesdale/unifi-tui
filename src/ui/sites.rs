@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{App};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Line;
@@ -36,6 +36,14 @@ pub fn render_sites(f: &mut Frame, app: &App, area: Rect) {
             Row::new(cells).style(style)
         })
         .collect();
+
+    let is_selected = app.state.selected_site.is_none();
+    
+    let style = if is_selected {
+        Style::default()
+    } else {
+        Style::default()
+    };
 
     let header = Row::new(vec![
         Cell::from("ID").style(Style::default().add_modifier(Modifier::BOLD)),

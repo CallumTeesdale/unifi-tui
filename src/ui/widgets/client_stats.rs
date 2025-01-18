@@ -1,10 +1,9 @@
+use chrono::Utc;
 use crate::state::AppState;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table,
-};
+use ratatui::widgets::{Axis, Block, Borders, Cell, Chart, Dataset, Gauge, GraphType, Paragraph, Row, Table};
 use ratatui::{symbols, Frame};
 use unifi_rs::ClientOverview;
 use uuid::Uuid;
@@ -23,11 +22,7 @@ impl<'a> ClientStatsView<'a> {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
-            .split(area);
-
+        
         if let Some(client) = self.app_state.clients.iter().find(|c| match c {
             ClientOverview::Wireless(w) => w.base.id == self.client_id,
             ClientOverview::Wired(w) => w.base.id == self.client_id,
@@ -35,251 +30,237 @@ impl<'a> ClientStatsView<'a> {
         }) {
             match client {
                 ClientOverview::Wireless(wireless) => {
-                    self.render_wireless_stats(f, chunks[1], wireless);
+                    self.render_wireless_stats(f, area, wireless);
                 }
                 ClientOverview::Wired(wired) => {
-                    self.render_wired_stats(f, chunks[1], wired);
+                    self.render_wired_stats(f, area, wired);
                 }
                 _ => {}
             }
         }
     }
 
+    fn format_duration(connected_at: chrono::DateTime<Utc>) -> String {
+        let duration = Utc::now().signed_duration_since(connected_at);
+        let hours = duration.num_hours();
+        let minutes = duration.num_minutes() % 60;
+        let seconds = duration.num_seconds() % 60;
+        format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+    }
+
     fn render_wireless_stats(
         &self,
         f: &mut Frame,
         area: Rect,
-        client: &unifi_rs::WirelessClientOverview,
+        client: &unifi_rs::WirelessClientOverview
     ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(7), Constraint::Min(0)].as_ref())
+            .constraints([
+                Constraint::Length(8),  // Connection info
+                Constraint::Length(3),  // Duration gauge
+                Constraint::Length(7),  // Device info
+                Constraint::Min(0),     // Network stats
+            ])
             .split(area);
-
+        
         let info_text = vec![
             Line::from(vec![
-                Span::raw("Name: "),
+                Span::styled("Name: ", Style::default()),
                 Span::styled(
                     client.base.name.as_deref().unwrap_or("Unnamed"),
                     Style::default().add_modifier(Modifier::BOLD),
                 ),
             ]),
             Line::from(vec![
-                Span::raw("MAC Address: "),
+                Span::styled("MAC Address: ", Style::default()),
                 Span::styled(
                     &client.mac_address,
-                    Style::default().add_modifier(Modifier::BOLD),
+                    Style::default()
                 ),
             ]),
             Line::from(vec![
-                Span::raw("IP Address: "),
+                Span::styled("IP Address: ", Style::default()),
                 Span::styled(
                     client.base.ip_address.as_deref().unwrap_or("Unknown"),
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
-            ]),
-            Line::from(vec![
-                Span::raw("Connected Since: "),
-                Span::styled(
-                    client
-                        .base
-                        .connected_at
-                        .format("%Y-%m-%d %H:%M:%S")
-                        .to_string(),
                     Style::default(),
                 ),
             ]),
             Line::from(vec![
-                Span::raw("Uplink Device: "),
-                Span::styled(client.uplink_device_id.to_string(), Style::default()),
+                Span::styled("Connected Since: ", Style::default()),
+                Span::styled(
+                    client.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    Style::default(),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("Session Duration: ", Style::default()),
+                Span::styled(
+                    Self::format_duration(client.base.connected_at),
+                    Style::default(),
+                ),
             ]),
         ];
 
-        let info = Paragraph::new(info_text).block(
-            Block::default()
+        let info = Paragraph::new(info_text)
+            .block(Block::default()
                 .borders(Borders::ALL)
-                .title("Connection Info"),
-        );
+                .border_style(Style::default())
+                .title("Connection Info"));
         f.render_widget(info, chunks[0]);
-
-        let metrics_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-            .split(chunks[1]);
-
-        let signal_info = vec![
-            Row::new(vec![
-                Cell::from("Signal Strength"),
-                Cell::from("-65 dBm").style(Style::default().fg(Color::Green)),
-            ]),
-            Row::new(vec![Cell::from("Noise Floor"), Cell::from("-95 dBm")]),
-            Row::new(vec![
-                Cell::from("SNR"),
-                Cell::from("30 dB").style(Style::default().fg(Color::Green)),
-            ]),
-            Row::new(vec![Cell::from("TX Rate"), Cell::from("867 Mbps")]),
-            Row::new(vec![Cell::from("RX Rate"), Cell::from("867 Mbps")]),
-        ];
-
-        let width = [Constraint::Percentage(40), Constraint::Percentage(60)];
-        let signal_table = Table::new(signal_info, width).block(
-            Block::default()
+        
+        let uptime = Utc::now().signed_duration_since(client.base.connected_at);
+        let uptime_pct = (uptime.num_minutes() as f64 / (24.0 * 60.0)).min(1.0);
+        let uptime_gauge = Gauge::default()
+            .block(Block::default()
+                .title("Session Duration (% of 24h)")
                 .borders(Borders::ALL)
-                .title("WiFi Performance"),
-        );
+                .border_style(Style::default()))
+            .gauge_style(Style::default())
+            .ratio(uptime_pct)
+            .label(format!("{:.1}%", uptime_pct * 100.0));
+        f.render_widget(uptime_gauge, chunks[1]);
+        
+        if let Some(device) = self.app_state.devices.iter()
+            .find(|d| d.id == client.uplink_device_id) {
 
-        f.render_widget(signal_table, metrics_layout[0]);
+            let device_text = vec![
+                Line::from(vec![
+                    Span::styled("Connected to: ", Style::default()),
+                    Span::styled(&device.name, Style::default().add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::styled("Model: ", Style::default()),
+                    Span::styled(&device.model, Style::default()),
+                ]),
+                Line::from(vec![
+                    Span::styled("Status: ", Style::default()),
+                    Span::styled(
+                        format!("{:?}", device.state),
+                        match device.state {
+                            unifi_rs::DeviceState::Online => Style::default(),
+                            unifi_rs::DeviceState::Offline => Style::default(),
+                            _ => Style::default(),
+                        },
+                    ),
+                ]),
+            ];
 
-        let dataset = vec![
-            Dataset::default()
-                .name("TX")
-                .marker(symbols::Marker::Dot)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(Color::Green))
-                .data(&[(0.0, 50.0), (1.0, 70.0), (2.0, 60.0)]),
-            Dataset::default()
-                .name("RX")
-                .marker(symbols::Marker::Dot)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(Color::Red))
-                .data(&[(0.0, 40.0), (1.0, 45.0), (2.0, 42.0)]),
-        ];
-
-        let chart = Chart::new(dataset)
-            .block(
-                Block::default()
-                    .title("Network Throughput")
-                    .borders(Borders::ALL),
-            )
-            .x_axis(
-                Axis::default()
-                    .title("Time")
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 2.0]),
-            )
-            .y_axis(
-                Axis::default()
-                    .title("Mbps")
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 100.0]),
-            );
-
-        f.render_widget(chart, metrics_layout[1]);
+            let device_info = Paragraph::new(device_text)
+                .block(Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default())
+                    .title("Connected Device"));
+            f.render_widget(device_info, chunks[2]);
+        }
     }
 
     fn render_wired_stats(
         &self,
         f: &mut Frame,
         area: Rect,
-        client: &unifi_rs::WiredClientOverview,
+        client: &unifi_rs::WiredClientOverview
     ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(7), Constraint::Min(0)].as_ref())
+            .constraints([
+                Constraint::Length(8),  // Connection info
+                Constraint::Length(3),  // Duration gauge
+                Constraint::Length(7),  // Device info
+                Constraint::Min(0),     // Network stats
+            ])
             .split(area);
-
+        
         let info_text = vec![
             Line::from(vec![
-                Span::raw("Name: "),
+                Span::styled("Name: ", Style::default()),
                 Span::styled(
                     client.base.name.as_deref().unwrap_or("Unnamed"),
                     Style::default().add_modifier(Modifier::BOLD),
                 ),
             ]),
             Line::from(vec![
-                Span::raw("MAC Address: "),
+                Span::styled("MAC Address: ", Style::default()),
                 Span::styled(
                     &client.mac_address,
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
-            ]),
-            Line::from(vec![
-                Span::raw("IP Address: "),
-                Span::styled(
-                    client.base.ip_address.as_deref().unwrap_or("Unknown"),
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
-            ]),
-            Line::from(vec![
-                Span::raw("Connected Since: "),
-                Span::styled(
-                    client
-                        .base
-                        .connected_at
-                        .format("%Y-%m-%d %H:%M:%S")
-                        .to_string(),
                     Style::default(),
                 ),
             ]),
             Line::from(vec![
-                Span::raw("Uplink Device: "),
-                Span::styled(client.uplink_device_id.to_string(), Style::default()),
+                Span::styled("IP Address: ", Style::default()),
+                Span::styled(
+                    client.base.ip_address.as_deref().unwrap_or("Unknown"),
+                    Style::default(),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("Connected Since: ", Style::default()),
+                Span::styled(
+                    client.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    Style::default(),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("Session Duration: ", Style::default()),
+                Span::styled(
+                    Self::format_duration(client.base.connected_at),
+                    Style::default(),
+                ),
             ]),
         ];
 
-        let info = Paragraph::new(info_text).block(
-            Block::default()
+        let info = Paragraph::new(info_text)
+            .block(Block::default()
                 .borders(Borders::ALL)
-                .title("Connection Info"),
-        );
+                .border_style(Style::default())
+                .title("Connection Info"));
         f.render_widget(info, chunks[0]);
 
-        let metrics_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-            .split(chunks[1]);
-
-        let port_info = vec![
-            Row::new(vec![Cell::from("Link Speed"), Cell::from("1 Gbps")]),
-            Row::new(vec![Cell::from("Duplex"), Cell::from("Full")]),
-            Row::new(vec![Cell::from("Power"), Cell::from("802.3at PoE+")]),
-            Row::new(vec![Cell::from("Port"), Cell::from("eth0")]),
-        ];
-
-        let width = [Constraint::Percentage(30), Constraint::Percentage(70)];
-
-        let port_table = Table::new(port_info, width).block(
-            Block::default()
+        // Duration Gauge
+        let uptime = Utc::now().signed_duration_since(client.base.connected_at);
+        let uptime_pct = (uptime.num_minutes() as f64 / (24.0 * 60.0)).min(1.0);
+        let uptime_gauge = Gauge::default()
+            .block(Block::default()
+                .title("Session Duration (% of 24h)")
                 .borders(Borders::ALL)
-                .title("Port Information"),
-        );
+                .border_style(Style::default()))
+            .gauge_style(Style::default())
+            .ratio(uptime_pct)
+            .label(format!("{:.1}%", uptime_pct * 100.0));
+        f.render_widget(uptime_gauge, chunks[1]);
 
-        f.render_widget(port_table, metrics_layout[0]);
+        // Connected Device Info
+        if let Some(device) = self.app_state.devices.iter()
+            .find(|d| d.id == client.uplink_device_id) {
 
-        let dataset = vec![
-            Dataset::default()
-                .name("TX")
-                .marker(symbols::Marker::Dot)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(Color::Green))
-                .data(&[(0.0, 100.0), (1.0, 150.0), (2.0, 120.0)]),
-            Dataset::default()
-                .name("RX")
-                .marker(symbols::Marker::Dot)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(Color::Red))
-                .data(&[(0.0, 80.0), (1.0, 90.0), (2.0, 85.0)]),
-        ];
+            let device_text = vec![
+                Line::from(vec![
+                    Span::styled("Connected to: ", Style::default()),
+                    Span::styled(&device.name, Style::default().add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::styled("Model: ", Style::default()),
+                    Span::styled(&device.model, Style::default()),
+                ]),
+                Line::from(vec![
+                    Span::styled("Status: ", Style::default()),
+                    Span::styled(
+                        format!("{:?}", device.state),
+                        match device.state {
+                            unifi_rs::DeviceState::Online => Style::default(),
+                            unifi_rs::DeviceState::Offline => Style::default(),
+                            _ => Style::default(),
+                        },
+                    ),
+                ]),
+            ];
 
-        let chart = Chart::new(dataset)
-            .block(
-                Block::default()
-                    .title("Network Throughput")
-                    .borders(Borders::ALL),
-            )
-            .x_axis(
-                Axis::default()
-                    .title("Time")
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 2.0]),
-            )
-            .y_axis(
-                Axis::default()
-                    .title("Mbps")
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 200.0]),
-            );
-
-        f.render_widget(chart, metrics_layout[1]);
+            let device_info = Paragraph::new(device_text)
+                .block(Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default())
+                    .title("Connected Device"));
+            f.render_widget(device_info, chunks[2]);
+        }
     }
 }

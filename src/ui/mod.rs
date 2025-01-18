@@ -4,8 +4,6 @@ pub mod sites;
 pub mod stats;
 pub mod status_bar;
 pub mod widgets;
-
-use crate::app::{App, Mode};
 use crate::ui::{
     clients::render_clients, devices::render_devices, sites::render_sites, stats::render_stats,
     status_bar::render_status_bar,
@@ -16,9 +14,10 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
 use ratatui::Frame;
+use crate::app::{App, DialogType, Mode};
 
 pub fn render(app: &mut App, f: &mut Frame) {
-    let size = f.size();
+    let size = f.area();
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -79,7 +78,7 @@ fn render_tabs(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(tabs, area);
 }
 
-fn render_overview(f: &mut Frame, app: &App, area: Rect) {
+fn render_overview(f: &mut Frame, app: &mut App, area: Rect) {
     match app.current_tab {
         0 => render_sites(f, app, area),
         1 => render_devices(f, app, area),
@@ -102,37 +101,44 @@ fn render_client_detail(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn render_dialog(f: &mut Frame, app: &App, area: Rect) {
+pub fn render_dialog(f: &mut Frame, app: &App, area: Rect) {
     let dialog = app.dialog.as_ref().unwrap();
-    let area = centered_rect(60, 20, area);
-    f.render_widget(Clear, area);
 
     let style = match dialog.dialog_type {
-        crate::app::DialogType::Error => Style::default().fg(Color::Red),
+        DialogType::Error => Style::default(),
+        DialogType::Message => Style::default(),
         _ => Style::default(),
     };
+
+    let area = centered_rect(60, 20, area);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default())
+        .title(dialog.title.clone());
 
     let text = vec![
         Line::from(""),
         Line::from(dialog.message.clone()),
         Line::from(""),
         Line::from(match dialog.dialog_type {
-            crate::app::DialogType::Confirmation => "(y) Yes  (n) No",
+            DialogType::Confirmation => "(y) Confirm  (n) Cancel",
             _ => "Press any key to close",
         }),
     ];
 
-    let title_line = Line::from(dialog.title.clone());
     let dialog_widget = Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).title(title_line))
-        .style(style);
+        .block(block)
+        .style(style)
+        .alignment(Alignment::Center);
+
+    f.render_widget(Clear, area);
     f.render_widget(dialog_widget, area);
 }
 
 fn render_search(f: &mut Frame, app: &App, area: Rect) {
     let search_area = centered_rect(60, 3, area);
 
-    let shadow_block = Block::default().style(Style::default().bg(Color::DarkGray));
+    let shadow_block = Block::default().style(Style::default());
     f.render_widget(Clear, search_area);
     f.render_widget(shadow_block, search_area);
 
@@ -140,7 +146,7 @@ fn render_search(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Yellow))
+                .border_style(Style::default())
                 .title("Search (Esc to close)"),
         )
         .style(Style::default());
@@ -151,8 +157,11 @@ fn render_search(f: &mut Frame, app: &App, area: Rect) {
 fn render_error(f: &mut Frame, error: &str, area: Rect) {
     let area = centered_rect(60, 3, area);
     let error_widget = Paragraph::new(error)
-        .block(Block::default().borders(Borders::ALL).title("Error"))
-        .style(Style::default().fg(Color::Red));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default())
+            .title("Error"))
+        .style(Style::default());
     f.render_widget(Clear, area);
     f.render_widget(error_widget, area);
 }

@@ -1,30 +1,38 @@
-use crate::app::App;
+use crate::app::{App};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
+use unifi_rs::DeviceState;
 
 pub fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
-    let site_context = app
-        .state
-        .selected_site
-        .as_ref()
-        .map(|s| format!("Site: {} | ", s.site_name))
-        .unwrap_or_else(|| "All Sites | ".to_string());
+
+    let online_devices = app.state.devices.iter()
+        .filter(|d| matches!(d.state, DeviceState::Online))
+        .count();
 
     let status = format!(
-        "{} Sites: {} | Devices: {} | Clients: {} | Last Update: {}s ago {}",
-        site_context,
-        app.state.sites.len(),
+        "{} | Devices: {} ({} online) | Clients: {} | {}",
+        app.state.selected_site.as_ref().map_or("All Sites", |s| &s.site_name),
         app.state.devices.len(),
+        online_devices,
         app.state.clients.len(),
-        app.state.last_update.elapsed().as_secs(),
-        if app.search_mode { "| SEARCH MODE" } else { "" }
+        format_uptime(app.state.last_update.elapsed()),
     );
 
-    let status_widget = Paragraph::new(Line::from(status))
-        .style(Style::default().bg(Color::DarkGray).fg(Color::White));
+    let status_bar = Paragraph::new(status)
+        .style(Style::default());
 
-    f.render_widget(status_widget, area);
+    f.render_widget(status_bar, area);
+}
+
+
+fn format_uptime(duration: std::time::Duration) -> String {
+    let uptime = duration.as_secs();
+    let hours = uptime / 3600;
+    let minutes = (uptime % 3600) / 60;
+    let seconds = uptime % 60;
+
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }

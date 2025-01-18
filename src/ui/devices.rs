@@ -5,77 +5,50 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
+use unifi_rs::DeviceState;
 
-pub fn render_devices(f: &mut Frame, app: &App, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
-        .split(area);
+pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
+    let header = Row::new(vec!["Name", "Model", "MAC", "IP", "State"])
+        .style(Style::default()
+            .add_modifier(Modifier::BOLD));
 
-    let devices: Vec<Row> = app
-        .state
-        .filtered_devices
+    let devices: Vec<Row> = app.state.filtered_devices
         .iter()
         .map(|device| {
             let state_style = match device.state {
-                unifi_rs::DeviceState::Online => Style::default().fg(Color::Green),
-                unifi_rs::DeviceState::Offline => Style::default().fg(Color::Red),
-                _ => Style::default().fg(Color::Yellow),
+                DeviceState::Online => Style::default(),
+                DeviceState::Offline => Style::default(),
+                _ => Style::default(),
             };
 
-            let cells = vec![
+            Row::new(vec![
                 Cell::from(device.name.clone()),
                 Cell::from(device.model.clone()),
-                Cell::from(device.mac_address.clone()),
+                Cell::from(device.mac_address.clone()).style(Style::default()),
                 Cell::from(device.ip_address.clone()),
                 Cell::from(format!("{:?}", device.state)).style(state_style),
-                Cell::from(device.features.join(", ")),
-            ];
-            Row::new(cells)
+            ])
         })
         .collect();
 
-    let header = Row::new(vec![
-        Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Model").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("MAC").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("IP").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("State").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Features").style(Style::default().add_modifier(Modifier::BOLD)),
-    ]);
-
     let widths = [
-        Constraint::Percentage(20),
-        Constraint::Percentage(15),
-        Constraint::Percentage(20),
-        Constraint::Percentage(15),
+        Constraint::Percentage(30),
+        Constraint::Percentage(30),
         Constraint::Percentage(15),
         Constraint::Percentage(15),
+        Constraint::Percentage(10),
     ];
-
-    let title = match &app.state.selected_site {
-        Some(site) => format!(
-            "Devices - {} [{}]",
-            site.site_name,
-            app.state.filtered_devices.len()
-        ),
-        None => format!("All Devices [{}]", app.state.filtered_devices.len()),
-    };
-
+    
     let table = Table::new(devices, widths)
         .header(header)
-        .block(Block::default().borders(Borders::ALL).title(title))
-        .row_highlight_style(Style::default().bg(Color::Gray))
-        .highlight_symbol("> ");
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default()))
+        .row_highlight_style(Style::default()
+            )
+        .highlight_symbol("➤ ");
 
-    f.render_stateful_widget(table, chunks[0], &mut app.devices_table_state.clone());
-
-    let help_text = vec![Line::from(
-        "↑/↓: Select | Enter: Details | r: Restart | s: Sort | /: Search",
-    )];
-    let help =
-        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
-    f.render_widget(help, chunks[1]);
+    f.render_stateful_widget(table, area, &mut app.devices_table_state);
 }
 
 pub async fn handle_device_input(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
