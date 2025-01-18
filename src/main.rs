@@ -12,7 +12,11 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::*,
 };
-use std::{collections::VecDeque, io, time::{Duration, Instant}};
+use std::{
+    collections::VecDeque,
+    io,
+    time::{Duration, Instant},
+};
 use unifi_rs::{DeviceDetails, DeviceStatistics, UnifiClient, UnifiClientBuilder};
 
 #[derive(Parser)]
@@ -149,19 +153,35 @@ impl App {
                 let clients = self.client.list_clients(site.id, None, None).await?;
                 self.clients = clients.data;
                 self.filtered_clients = self.clients.clone();
-                
+
                 if let Some(idx) = self.selected_device_index {
                     if let Some(device) = self.devices.get(idx) {
-                        self.device_details = self.client.get_device_details(site.id, device.id).await.ok();
-                        self.device_stats = self.client.get_device_statistics(site.id, device.id).await.ok();
+                        self.device_details = self
+                            .client
+                            .get_device_details(site.id, device.id)
+                            .await
+                            .ok();
+                        self.device_stats = self
+                            .client
+                            .get_device_statistics(site.id, device.id)
+                            .await
+                            .ok();
                     }
                 }
-                
+
                 let stats = NetworkStats {
                     timestamp: Utc::now(),
                     client_count: self.clients.len(),
-                    wireless_clients: self.clients.iter().filter(|c| matches!(c, unifi_rs::ClientOverview::Wireless(_))).count(),
-                    wired_clients: self.clients.iter().filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_))).count(),
+                    wireless_clients: self
+                        .clients
+                        .iter()
+                        .filter(|c| matches!(c, unifi_rs::ClientOverview::Wireless(_)))
+                        .count(),
+                    wired_clients: self
+                        .clients
+                        .iter()
+                        .filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_)))
+                        .count(),
                     cpu_utilization: Vec::new(),
                     memory_utilization: Vec::new(),
                 };
@@ -173,10 +193,10 @@ impl App {
             }
 
             self.last_update = Instant::now();
-            
+
             self.sort_devices();
             self.sort_clients();
-            
+
             if !self.search_query.is_empty() {
                 self.apply_filters();
             }
@@ -257,31 +277,55 @@ impl App {
     fn apply_filters(&mut self) {
         let query = self.search_query.to_lowercase();
 
-        self.filtered_devices = self.devices.iter()
+        self.filtered_devices = self
+            .devices
+            .iter()
             .filter(|d| {
-                d.name.to_lowercase().contains(&query) ||
-                    d.model.to_lowercase().contains(&query) ||
-                    d.mac_address.to_lowercase().contains(&query) ||
-                    d.ip_address.to_lowercase().contains(&query)
+                d.name.to_lowercase().contains(&query)
+                    || d.model.to_lowercase().contains(&query)
+                    || d.mac_address.to_lowercase().contains(&query)
+                    || d.ip_address.to_lowercase().contains(&query)
             })
             .cloned()
             .collect();
 
-        self.filtered_clients = self.clients.iter()
-            .filter(|c| {
-                match c {
-                    unifi_rs::ClientOverview::Wired(wc) => {
-                        wc.base.name.as_deref().unwrap_or("").to_lowercase().contains(&query) ||
-                            wc.base.ip_address.as_deref().unwrap_or("").to_lowercase().contains(&query) ||
-                            wc.mac_address.to_lowercase().contains(&query)
-                    },
-                    unifi_rs::ClientOverview::Wireless(wc) => {
-                        wc.base.name.as_deref().unwrap_or("").to_lowercase().contains(&query) ||
-                            wc.base.ip_address.as_deref().unwrap_or("").to_lowercase().contains(&query) ||
-                            wc.mac_address.to_lowercase().contains(&query)
-                    },
-                    _ => false,
+        self.filtered_clients = self
+            .clients
+            .iter()
+            .filter(|c| match c {
+                unifi_rs::ClientOverview::Wired(wc) => {
+                    wc.base
+                        .name
+                        .as_deref()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .contains(&query)
+                        || wc
+                            .base
+                            .ip_address
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&query)
+                        || wc.mac_address.to_lowercase().contains(&query)
                 }
+                unifi_rs::ClientOverview::Wireless(wc) => {
+                    wc.base
+                        .name
+                        .as_deref()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .contains(&query)
+                        || wc
+                            .base
+                            .ip_address
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&query)
+                        || wc.mac_address.to_lowercase().contains(&query)
+                }
+                _ => false,
             })
             .cloned()
             .collect();
@@ -333,13 +377,10 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
 
         terminal.draw(|f| {
             let size = f.area();
-            
+
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(1),
-                    Constraint::Length(1),
-                ].as_ref())
+                .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
                 .split(size);
 
             if let Some(dialog) = &app.dialog {
@@ -354,9 +395,9 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
                     Mode::Help => draw_help(f, chunks[0]),
                 }
             }
-            
+
             draw_status_bar(f, chunks[1], &app);
-            
+
             if let Some(error) = &app.error_message {
                 if let Some(timestamp) = app.error_timestamp {
                     if timestamp.elapsed() < Duration::from_secs(5) {
@@ -367,7 +408,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
                     }
                 }
             }
-            
+
             if app.search_mode {
                 draw_search_bar(f, size, &app);
             }
@@ -450,38 +491,40 @@ async fn handle_overview_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
         KeyCode::Tab => app.current_tab = (app.current_tab + 1) % 4,
         KeyCode::BackTab => app.current_tab = (app.current_tab + 3) % 4,
         KeyCode::Char('r') => app.last_update = Instant::now() - app.refresh_interval,
-        KeyCode::Char('s') => {
-            match app.current_tab {
-                1 => { 
-                    match app.device_sort_order {
-                        SortOrder::None => app.device_sort_order = SortOrder::Ascending,
-                        SortOrder::Ascending => app.device_sort_order = SortOrder::Descending,
-                        SortOrder::Descending => app.device_sort_order = SortOrder::None,
-                    }
-                    app.sort_devices();
+        KeyCode::Char('s') => match app.current_tab {
+            1 => {
+                match app.device_sort_order {
+                    SortOrder::None => app.device_sort_order = SortOrder::Ascending,
+                    SortOrder::Ascending => app.device_sort_order = SortOrder::Descending,
+                    SortOrder::Descending => app.device_sort_order = SortOrder::None,
                 }
-                2 => { 
-                    match app.client_sort_order {
-                        SortOrder::None => app.client_sort_order = SortOrder::Ascending,
-                        SortOrder::Ascending => app.client_sort_order = SortOrder::Descending,
-                        SortOrder::Descending => app.client_sort_order = SortOrder::None,
-                    }
-                    app.sort_clients();
-                }
-                _ => {}
+                app.sort_devices();
             }
-        }
+            2 => {
+                match app.client_sort_order {
+                    SortOrder::None => app.client_sort_order = SortOrder::Ascending,
+                    SortOrder::Ascending => app.client_sort_order = SortOrder::Descending,
+                    SortOrder::Descending => app.client_sort_order = SortOrder::None,
+                }
+                app.sort_clients();
+            }
+            _ => {}
+        },
         KeyCode::Down => match app.current_tab {
-            1 => { // Devices tab
+            1 => {
+                // Devices tab
                 if let Some(idx) = app.selected_device_index {
-                    app.selected_device_index = Some((idx + 1).min(app.filtered_devices.len().saturating_sub(1)));
+                    app.selected_device_index =
+                        Some((idx + 1).min(app.filtered_devices.len().saturating_sub(1)));
                 } else if !app.filtered_devices.is_empty() {
                     app.selected_device_index = Some(0);
                 }
             }
-            2 => { // Clients tab
+            2 => {
+                // Clients tab
                 if let Some(idx) = app.selected_client_index {
-                    app.selected_client_index = Some((idx + 1).min(app.filtered_clients.len().saturating_sub(1)));
+                    app.selected_client_index =
+                        Some((idx + 1).min(app.filtered_clients.len().saturating_sub(1)));
                 } else if !app.filtered_clients.is_empty() {
                     app.selected_client_index = Some(0);
                 }
@@ -489,12 +532,14 @@ async fn handle_overview_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
             _ => {}
         },
         KeyCode::Up => match app.current_tab {
-            1 => { // Devices tab
+            1 => {
+                // Devices tab
                 if let Some(idx) = app.selected_device_index {
                     app.selected_device_index = Some(idx.saturating_sub(1));
                 }
             }
-            2 => { // Clients tab
+            2 => {
+                // Clients tab
                 if let Some(idx) = app.selected_client_index {
                     app.selected_client_index = Some(idx.saturating_sub(1));
                 }
@@ -531,7 +576,10 @@ async fn handle_detail_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
 
                         app.dialog = Some(Dialog {
                             title: "Confirm Restart".to_string(),
-                            message: format!("Are you sure you want to restart {}? (y/n)", device.name),
+                            message: format!(
+                                "Are you sure you want to restart {}? (y/n)",
+                                device.name
+                            ),
                             dialog_type: DialogType::Confirmation,
                             callback: Some(Box::new(move |_app| {
                                 let result = tokio::runtime::Handle::current().block_on(async {
@@ -630,11 +678,14 @@ fn draw_overview(f: &mut Frame, area: Rect, app: &App, menu_titles: &[&str]) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Length(3),
+                Constraint::Min(0),
+                Constraint::Length(3),
+            ]
+            .as_ref(),
+        )
         .split(area);
 
     let menu = menu_titles
@@ -646,7 +697,11 @@ fn draw_overview(f: &mut Frame, area: Rect, app: &App, menu_titles: &[&str]) {
         .block(Block::default().borders(Borders::ALL).title("Tabs"))
         .select(app.current_tab)
         .style(Style::default())
-        .highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Gray));
+        .highlight_style(
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .bg(Color::Gray),
+        );
     f.render_widget(tabs, chunks[0]);
 
     match app.current_tab {
@@ -658,39 +713,40 @@ fn draw_overview(f: &mut Frame, area: Rect, app: &App, menu_titles: &[&str]) {
     }
 
     let help_text = match app.current_tab {
-        0 => vec![
-            Line::from("q: quit | ?: help | tab: switch views | r: refresh"),
-        ],
-        1 => vec![
-            Line::from("q: quit | ?: help | ↑↓: select | enter: details | s: sort | /: search"),
-        ],
-        2 => vec![
-            Line::from("q: quit | ?: help | ↑↓: select | enter: details | s: sort | /: search"),
-        ],
-        3 => vec![
-            Line::from("q: quit | ?: help | r: refresh | tab: switch views"),
-        ],
+        0 => vec![Line::from(
+            "q: quit | ?: help | tab: switch views | r: refresh",
+        )],
+        1 => vec![Line::from(
+            "q: quit | ?: help | ↑↓: select | enter: details | s: sort | /: search",
+        )],
+        2 => vec![Line::from(
+            "q: quit | ?: help | ↑↓: select | enter: details | s: sort | /: search",
+        )],
+        3 => vec![Line::from(
+            "q: quit | ?: help | r: refresh | tab: switch views",
+        )],
         _ => vec![],
     };
 
-    let help = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Quick Help"));
+    let help =
+        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
     f.render_widget(help, chunks[2]);
 }
 
 fn render_sites(f: &mut Frame, area: Rect, app: &App) {
-    let sites: Vec<Row> = app.sites.iter().map(|site| {
-        let cells = vec![
-            Cell::from(site.id.to_string()),
-            Cell::from(site.name.as_deref().unwrap_or("Unnamed")),
-        ];
-        Row::new(cells)
-    }).collect();
+    let sites: Vec<Row> = app
+        .sites
+        .iter()
+        .map(|site| {
+            let cells = vec![
+                Cell::from(site.id.to_string()),
+                Cell::from(site.name.as_deref().unwrap_or("Unnamed")),
+            ];
+            Row::new(cells)
+        })
+        .collect();
 
-    let widths = [
-        Constraint::Percentage(30),
-        Constraint::Percentage(70),
-    ];
+    let widths = [Constraint::Percentage(30), Constraint::Percentage(70)];
 
     let table = Table::new(sites, widths)
         .header(Row::new(vec!["ID", "Name"]))
@@ -703,29 +759,34 @@ fn render_sites(f: &mut Frame, area: Rect, app: &App) {
 fn render_devices(f: &mut Frame, area: Rect, app: &App) {
     let selected_style = Style::default().bg(Color::Gray);
 
-    let devices: Vec<Row> = app.filtered_devices.iter().enumerate().map(|(idx, device)| {
-        let style = if Some(idx) == app.selected_device_index {
-            selected_style
-        } else {
-            Style::default()
-        };
+    let devices: Vec<Row> = app
+        .filtered_devices
+        .iter()
+        .enumerate()
+        .map(|(idx, device)| {
+            let style = if Some(idx) == app.selected_device_index {
+                selected_style
+            } else {
+                Style::default()
+            };
 
-        let state_style = match device.state {
-            unifi_rs::DeviceState::Online => Style::default().fg(Color::Green),
-            unifi_rs::DeviceState::Offline => Style::default().fg(Color::Red),
-            _ => Style::default().fg(Color::Yellow),
-        };
+            let state_style = match device.state {
+                unifi_rs::DeviceState::Online => Style::default().fg(Color::Green),
+                unifi_rs::DeviceState::Offline => Style::default().fg(Color::Red),
+                _ => Style::default().fg(Color::Yellow),
+            };
 
-        let cells = vec![
-            Cell::from(device.name.clone()),
-            Cell::from(device.model.clone()),
-            Cell::from(device.mac_address.clone()),
-            Cell::from(device.ip_address.clone()),
-            Cell::from(format!("{:?}", device.state)).style(state_style),
-            Cell::from(device.features.join(", ")),
-        ];
-        Row::new(cells).style(style)
-    }).collect();
+            let cells = vec![
+                Cell::from(device.name.clone()),
+                Cell::from(device.model.clone()),
+                Cell::from(device.mac_address.clone()),
+                Cell::from(device.ip_address.clone()),
+                Cell::from(format!("{:?}", device.state)).style(state_style),
+                Cell::from(device.features.join(", ")),
+            ];
+            Row::new(cells).style(style)
+        })
+        .collect();
 
     let header_cells = vec![
         Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
@@ -747,16 +808,15 @@ fn render_devices(f: &mut Frame, area: Rect, app: &App) {
 
     let table = Table::new(devices, widths)
         .header(Row::new(header_cells))
-        .block(Block::default().borders(Borders::ALL).title(
-            format!("Devices ({}) [{}]",
-                    app.filtered_devices.len(),
-                    match app.device_sort_order {
-                        SortOrder::Ascending => "↑",
-                        SortOrder::Descending => "↓",
-                        SortOrder::None => "-",
-                    }
-            )
-        ))
+        .block(Block::default().borders(Borders::ALL).title(format!(
+            "Devices ({}) [{}]",
+            app.filtered_devices.len(),
+            match app.device_sort_order {
+                SortOrder::Ascending => "↑",
+                SortOrder::Descending => "↓",
+                SortOrder::None => "-",
+            }
+        )))
         .row_highlight_style(selected_style)
         .highlight_symbol("> ");
 
@@ -766,49 +826,63 @@ fn render_devices(f: &mut Frame, area: Rect, app: &App) {
 fn render_clients(f: &mut Frame, area: Rect, app: &App) {
     let selected_style = Style::default().bg(Color::Gray);
 
-    let clients: Vec<Row> = app.filtered_clients.iter().enumerate().map(|(idx, client)| {
-        let style = if Some(idx) == app.selected_client_index {
-            selected_style
-        } else {
-            Style::default()
-        };
+    let clients: Vec<Row> = app
+        .filtered_clients
+        .iter()
+        .enumerate()
+        .map(|(idx, client)| {
+            let style = if Some(idx) == app.selected_client_index {
+                selected_style
+            } else {
+                Style::default()
+            };
 
-        let (name, ip, mac, r#type, connected_since, status) = match client {
-            unifi_rs::ClientOverview::Wired(c) => (
-                c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                c.base.ip_address.as_deref().unwrap_or("Unknown").to_string(),
-                c.mac_address.clone(),
-                Cell::from("Wired").style(Style::default().fg(Color::Blue)),
-                c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                Cell::from("Connected").style(Style::default().fg(Color::Green)),
-            ),
-            unifi_rs::ClientOverview::Wireless(c) => (
-                c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                c.base.ip_address.as_deref().unwrap_or("Unknown").to_string(),
-                c.mac_address.clone(),
-                Cell::from("Wireless").style(Style::default().fg(Color::Yellow)),
-                c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                Cell::from("Connected").style(Style::default().fg(Color::Green)),
-            ),
-            _ => (
-                "Unknown".to_string(),
-                "Unknown".to_string(),
-                "Unknown".to_string(),
-                Cell::from("Other").style(Style::default().fg(Color::Red)),
-                "Unknown".to_string(),
-                Cell::from("Unknown").style(Style::default().fg(Color::Red)),
-            ),
-        };
+            let (name, ip, mac, r#type, connected_since, status) = match client {
+                unifi_rs::ClientOverview::Wired(c) => (
+                    c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
+                    c.base
+                        .ip_address
+                        .as_deref()
+                        .unwrap_or("Unknown")
+                        .to_string(),
+                    c.mac_address.clone(),
+                    Cell::from("Wired").style(Style::default().fg(Color::Blue)),
+                    c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    Cell::from("Connected").style(Style::default().fg(Color::Green)),
+                ),
+                unifi_rs::ClientOverview::Wireless(c) => (
+                    c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
+                    c.base
+                        .ip_address
+                        .as_deref()
+                        .unwrap_or("Unknown")
+                        .to_string(),
+                    c.mac_address.clone(),
+                    Cell::from("Wireless").style(Style::default().fg(Color::Yellow)),
+                    c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    Cell::from("Connected").style(Style::default().fg(Color::Green)),
+                ),
+                _ => (
+                    "Unknown".to_string(),
+                    "Unknown".to_string(),
+                    "Unknown".to_string(),
+                    Cell::from("Other").style(Style::default().fg(Color::Red)),
+                    "Unknown".to_string(),
+                    Cell::from("Unknown").style(Style::default().fg(Color::Red)),
+                ),
+            };
 
-        Row::new(vec![
-            Cell::from(name),
-            Cell::from(ip),
-            Cell::from(mac),
-            r#type,
-            Cell::from(connected_since),
-            status,
-        ]).style(style)
-    }).collect();
+            Row::new(vec![
+                Cell::from(name),
+                Cell::from(ip),
+                Cell::from(mac),
+                r#type,
+                Cell::from(connected_since),
+                status,
+            ])
+            .style(style)
+        })
+        .collect();
 
     let header_cells = vec![
         Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
@@ -830,16 +904,15 @@ fn render_clients(f: &mut Frame, area: Rect, app: &App) {
 
     let table = Table::new(clients, widths)
         .header(Row::new(header_cells))
-        .block(Block::default().borders(Borders::ALL).title(
-            format!("Clients ({}) [{}]",
-                    app.filtered_clients.len(),
-                    match app.client_sort_order {
-                        SortOrder::Ascending => "↑",
-                        SortOrder::Descending => "↓",
-                        SortOrder::None => "-",
-                    }
-            )
-        ))
+        .block(Block::default().borders(Borders::ALL).title(format!(
+            "Clients ({}) [{}]",
+            app.filtered_clients.len(),
+            match app.client_sort_order {
+                SortOrder::Ascending => "↑",
+                SortOrder::Descending => "↓",
+                SortOrder::None => "-",
+            }
+        )))
         .row_highlight_style(selected_style)
         .highlight_symbol("> ");
 
@@ -849,50 +922,67 @@ fn render_clients(f: &mut Frame, area: Rect, app: &App) {
 fn render_stats(f: &mut Frame, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(7),
-            Constraint::Min(0),
-        ].as_ref())
+        .constraints([Constraint::Length(7), Constraint::Min(0)].as_ref())
         .split(area);
-    
+
     let summary_text = vec![
         Line::from(format!("Total Sites: {}", app.sites.len())),
-        Line::from(format!("Total Devices: {} ({} online)",
-                           app.devices.len(),
-                           app.devices.iter().filter(|d| matches!(d.state, unifi_rs::DeviceState::Online)).count()
+        Line::from(format!(
+            "Total Devices: {} ({} online)",
+            app.devices.len(),
+            app.devices
+                .iter()
+                .filter(|d| matches!(d.state, unifi_rs::DeviceState::Online))
+                .count()
         )),
         Line::from(format!("Total Clients: {}", app.clients.len())),
-        Line::from(format!("Wireless Clients: {}",
-                           app.clients.iter().filter(|c| matches!(c, unifi_rs::ClientOverview::Wireless(_))).count()
+        Line::from(format!(
+            "Wireless Clients: {}",
+            app.clients
+                .iter()
+                .filter(|c| matches!(c, unifi_rs::ClientOverview::Wireless(_)))
+                .count()
         )),
-        Line::from(format!("Wired Clients: {}",
-                           app.clients.iter().filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_))).count()
+        Line::from(format!(
+            "Wired Clients: {}",
+            app.clients
+                .iter()
+                .filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_)))
+                .count()
         )),
     ];
 
     let summary = Paragraph::new(summary_text)
-        .block(Block::default().borders(Borders::ALL).title("Network Summary"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Network Summary"),
+        )
         .style(Style::default());
     f.render_widget(summary, chunks[0]);
-    
+
     let client_history: Vec<&NetworkStats> = app.stats_history.iter().collect();
     if !client_history.is_empty() {
-        let total_data: Vec<(f64, f64)> = client_history.iter()
+        let total_data: Vec<(f64, f64)> = client_history
+            .iter()
             .enumerate()
             .map(|(i, s)| (i as f64, s.client_count as f64))
             .collect();
 
-        let wireless_data: Vec<(f64, f64)> = client_history.iter()
+        let wireless_data: Vec<(f64, f64)> = client_history
+            .iter()
             .enumerate()
             .map(|(i, s)| (i as f64, s.wireless_clients as f64))
             .collect();
 
-        let wired_data: Vec<(f64, f64)> = client_history.iter()
+        let wired_data: Vec<(f64, f64)> = client_history
+            .iter()
             .enumerate()
             .map(|(i, s)| (i as f64, s.wired_clients as f64))
             .collect();
 
-        let max_y = client_history.iter()
+        let max_y = client_history
+            .iter()
             .map(|s| s.client_count as f64)
             .fold(0.0, f64::max);
 
@@ -918,26 +1008,43 @@ fn render_stats(f: &mut Frame, area: Rect, app: &App) {
         ];
 
         let chart = Chart::new(datasets)
-            .block(Block::default().title("Client History").borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title("Client History")
+                    .borders(Borders::ALL),
+            )
             .x_axis(
                 Axis::default()
                     .title(Span::styled("Time", Style::default().fg(Color::Gray)))
                     .style(Style::default().fg(Color::Gray))
                     .bounds([0.0, (client_history.len() - 1) as f64])
-                    .labels(vec![
-                        Span::styled("5m ago", Style::default().fg(Color::Gray)),
-                        Span::styled("Now", Style::default().fg(Color::Gray)),
-                    ].into_iter().map(Line::from).collect::<Vec<Line>>())
+                    .labels(
+                        vec![
+                            Span::styled("5m ago", Style::default().fg(Color::Gray)),
+                            Span::styled("Now", Style::default().fg(Color::Gray)),
+                        ]
+                        .into_iter()
+                        .map(Line::from)
+                        .collect::<Vec<Line>>(),
+                    ),
             )
             .y_axis(
                 Axis::default()
                     .title(Span::styled("Clients", Style::default().fg(Color::Gray)))
                     .style(Style::default().fg(Color::Gray))
                     .bounds([0.0, max_y * 1.1])
-                    .labels(vec![
-                        Span::styled("0", Style::default().fg(Color::Gray)),
-                        Span::styled(format!("{}", max_y as i32), Style::default().fg(Color::Gray)),
-                    ].into_iter().map(Line::from).collect::<Vec<Line>>())
+                    .labels(
+                        vec![
+                            Span::styled("0", Style::default().fg(Color::Gray)),
+                            Span::styled(
+                                format!("{}", max_y as i32),
+                                Style::default().fg(Color::Gray),
+                            ),
+                        ]
+                        .into_iter()
+                        .map(Line::from)
+                        .collect::<Vec<Line>>(),
+                    ),
             );
 
         f.render_widget(chart, chunks[1]);
@@ -948,13 +1055,12 @@ fn draw_device_detail(f: &mut Frame, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ].as_ref())
+        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
         .split(area);
 
-    let selected_device = app.selected_device_index.and_then(|idx| app.filtered_devices.get(idx));
+    let selected_device = app
+        .selected_device_index
+        .and_then(|idx| app.filtered_devices.get(idx));
 
     if let Some(device) = selected_device {
         let state_style = match device.state {
@@ -974,11 +1080,17 @@ fn draw_device_detail(f: &mut Frame, area: Rect, app: &App) {
             ]),
             Line::from(vec![
                 Span::raw("MAC: "),
-                Span::styled(&device.mac_address, Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &device.mac_address,
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(vec![
                 Span::raw("IP: "),
-                Span::styled(&device.ip_address, Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &device.ip_address,
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(vec![
                 Span::raw("State: "),
@@ -994,22 +1106,30 @@ fn draw_device_detail(f: &mut Frame, area: Rect, app: &App) {
         if let Some(stats) = &app.device_stats {
             details_text.extend(vec![
                 Line::from(format!("Uptime: {} hours", stats.uptime_sec / 3600)),
-                Line::from(format!("CPU: {}%", stats.cpu_utilization_pct.unwrap_or(0.0))),
-                Line::from(format!("Memory: {}%", stats.memory_utilization_pct.unwrap_or(0.0))),
+                Line::from(format!(
+                    "CPU: {}%",
+                    stats.cpu_utilization_pct.unwrap_or(0.0)
+                )),
+                Line::from(format!(
+                    "Memory: {}%",
+                    stats.memory_utilization_pct.unwrap_or(0.0)
+                )),
             ]);
         }
 
         let content = Paragraph::new(details_text)
-            .block(Block::default().borders(Borders::ALL).title("Device Details"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Device Details"),
+            )
             .wrap(Wrap { trim: true });
         f.render_widget(content, chunks[0]);
     }
 
-    let help_text = vec![
-        Line::from("ESC: Back | r: Restart Device | q: Quit"),
-    ];
-    let help = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Quick Help"));
+    let help_text = vec![Line::from("ESC: Back | r: Restart Device | q: Quit")];
+    let help =
+        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
     f.render_widget(help, chunks[1]);
 }
 
@@ -1017,20 +1137,22 @@ fn draw_client_detail(f: &mut Frame, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ].as_ref())
+        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
         .split(area);
 
-    let selected_client = app.selected_client_index.and_then(|idx| app.filtered_clients.get(idx));
+    let selected_client = app
+        .selected_client_index
+        .and_then(|idx| app.filtered_clients.get(idx));
 
     if let Some(client) = selected_client {
         let details_text = match client {
             unifi_rs::ClientOverview::Wired(c) => vec![
                 Line::from(vec![
                     Span::raw("Name: "),
-                    Span::styled(c.base.name.as_deref().unwrap_or("Unnamed"), Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        c.base.name.as_deref().unwrap_or("Unnamed"),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("Type: "),
@@ -1038,15 +1160,24 @@ fn draw_client_detail(f: &mut Frame, area: Rect, app: &App) {
                 ]),
                 Line::from(vec![
                     Span::raw("MAC: "),
-                    Span::styled(&c.mac_address, Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        &c.mac_address,
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("IP: "),
-                    Span::styled(c.base.ip_address.as_deref().unwrap_or("Unknown"), Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        c.base.ip_address.as_deref().unwrap_or("Unknown"),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("Connected Since: "),
-                    Span::styled(c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(), Style::default()),
+                    Span::styled(
+                        c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                        Style::default(),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("Uplink Device: "),
@@ -1056,7 +1187,10 @@ fn draw_client_detail(f: &mut Frame, area: Rect, app: &App) {
             unifi_rs::ClientOverview::Wireless(c) => vec![
                 Line::from(vec![
                     Span::raw("Name: "),
-                    Span::styled(c.base.name.as_deref().unwrap_or("Unnamed"), Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        c.base.name.as_deref().unwrap_or("Unnamed"),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("Type: "),
@@ -1064,37 +1198,46 @@ fn draw_client_detail(f: &mut Frame, area: Rect, app: &App) {
                 ]),
                 Line::from(vec![
                     Span::raw("MAC: "),
-                    Span::styled(&c.mac_address, Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        &c.mac_address,
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("IP: "),
-                    Span::styled(c.base.ip_address.as_deref().unwrap_or("Unknown"), Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        c.base.ip_address.as_deref().unwrap_or("Unknown"),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("Connected Since: "),
-                    Span::styled(c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(), Style::default()),
+                    Span::styled(
+                        c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                        Style::default(),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("Uplink Device: "),
                     Span::styled(c.uplink_device_id.to_string(), Style::default()),
                 ]),
             ],
-            _ => vec![
-                Line::from("Unknown client type"),
-            ],
+            _ => vec![Line::from("Unknown client type")],
         };
 
         let content = Paragraph::new(details_text)
-            .block(Block::default().borders(Borders::ALL).title("Client Details"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Client Details"),
+            )
             .wrap(Wrap { trim: true });
         f.render_widget(content, chunks[0]);
     }
 
-    let help_text = vec![
-        Line::from("ESC: Back | q: Quit"),
-    ];
-    let help = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Quick Help"));
+    let help_text = vec![Line::from("ESC: Back | q: Quit")];
+    let help =
+        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
     f.render_widget(help, chunks[1]);
 }
 
@@ -1118,7 +1261,11 @@ fn draw_dialog(f: &mut Frame, area: Rect, dialog: &Dialog) {
     };
 
     let dialog_box = Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).title(dialog.title.as_str()))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(dialog.title.as_str()),
+        )
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
         .style(dialog_style);
