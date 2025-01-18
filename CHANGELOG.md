@@ -1,6 +1,20 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.22] - 2025-01-18
+
+### Bug Fixes
+
+- Search bar rendering
+
+### Miscellaneous Tasks
+
+- Clippy lint
+
+### Refactor
+
+- Start splitting stuff out now that it works
+
 ## [0.1.21] - 2025-01-18
 
 ### Features
