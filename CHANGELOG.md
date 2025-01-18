@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.19] - 2025-01-18
+
+### Ci
+
+- Probably should read the cross docs rather than just releasing and reading the error. Anyway, add some logging for ssl
+
 ## [0.1.18] - 2025-01-18
 
 ### Ci
