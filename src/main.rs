@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
 }
 
 async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
-    let menu_titles = vec!["Sites", "Devices", "Clients", "Stats"];
+    let menu_titles = ["Sites", "Devices", "Clients", "Stats"];
 
     loop {
         if let Err(e) = app.refresh_data().await {
