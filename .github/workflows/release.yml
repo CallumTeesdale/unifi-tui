@@ -36,6 +36,9 @@ jobs:
       - name: Build with cross
         run: cross build --release --target ${{ matrix.target }}
 
+      - name: List target directory
+        run: ls -R target
+
       - name: Archive binaries
         run: |
           mkdir -p release
