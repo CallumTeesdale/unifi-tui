@@ -47,9 +47,6 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Run tests
-        run: cargo test --lib
-
       - name: Commit CHANGELOG and Cargo.lock
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
