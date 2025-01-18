@@ -598,11 +598,8 @@ async fn handle_detail_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
 }
 
 async fn handle_client_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
-    match key.code {
-        KeyCode::Esc => {
-            app.mode = Mode::Overview;
-        }
-        _ => {}
+    if key.code == KeyCode::Esc {
+        app.mode = Mode::Overview;
     }
     Ok(())
 }
