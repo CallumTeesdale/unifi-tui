@@ -1,4 +1,3 @@
-# .github/workflows/release.yml
 name: Release and Publish
 
 on:
@@ -11,8 +10,40 @@ permissions:
   contents: write
 
 jobs:
-  release-and-publish:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-pc-windows-gnu
+          - x86_64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install cross
+        run: cargo install cross
+
+      - name: Build with cross
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Archive binaries
+        run: |
+          mkdir -p release
+          cp target/${{ matrix.target }}/release/unifi-tui release/unifi-tui-${{ matrix.target }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
     steps:
       - uses: actions/checkout@v3
         with:
@@ -38,14 +69,12 @@ jobs:
           body_path: CHANGELOG.md
           draft: false
           prerelease: false
+          files: |
+            release/unifi-tui-x86_64-unknown-linux-gnu
+            release/unifi-tui-x86_64-pc-windows-gnu
+            release/unifi-tui-x86_64-apple-darwin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
 
       - name: Commit CHANGELOG and Cargo.lock
         run: |
@@ -53,16 +82,6 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add CHANGELOG.md Cargo.lock
           git commit -m "chore: update changelog and cargo.lock for ${{ steps.version.outputs.version }}" || echo "No changes to commit"
-
-      - name: Debug Info
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Repository contents:"
-          ls -la
-          echo "Cargo.toml contents:"
-          cat Cargo.toml
-          echo "Git status:"
-          git status
 
       - name: Publish to crates.io
         env:
