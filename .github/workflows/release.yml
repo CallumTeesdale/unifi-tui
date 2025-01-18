@@ -45,6 +45,12 @@ jobs:
             cp target/${{ matrix.target }}/release/unifi-tui release/unifi-tui-${{ matrix.target }}
           fi
 
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: unifi-tui-${{ matrix.target }}
+          path: release/
+
   release:
     runs-on: ubuntu-latest
     needs: build

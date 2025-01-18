@@ -19,6 +19,11 @@ use std::{
 };
 use unifi_rs::{DeviceDetails, DeviceStatistics, UnifiClient, UnifiClientBuilder};
 
+mod devices;
+mod clients;
+mod stats;
+mod sites;
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -394,8 +399,8 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
             } else {
                 match app.mode {
                     Mode::Overview => draw_overview(f, chunks[0], &app, &menu_titles),
-                    Mode::DeviceDetail => draw_device_detail(f, chunks[0], &app),
-                    Mode::ClientDetail => draw_client_detail(f, chunks[0], &app),
+                    Mode::DeviceDetail => devices::draw_device_detail(f, chunks[0], &app),
+                    Mode::ClientDetail => clients::draw_client_detail(f, chunks[0], &app),
                     Mode::Help => draw_help(f, chunks[0]),
                 }
             }
@@ -465,7 +470,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
 
                 match app.mode {
                     Mode::Overview => handle_overview_input(&mut app, key).await?,
-                    Mode::DeviceDetail => handle_detail_input(&mut app, key).await?,
+                    Mode::DeviceDetail => devices::handle_device_detail_input(&mut app, key).await?,
                     Mode::ClientDetail => handle_client_input(&mut app, key).await?,
                     Mode::Help => {
                         if key.code == KeyCode::Esc {
@@ -563,50 +568,17 @@ async fn handle_overview_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
     }
     Ok(())
 }
-async fn handle_detail_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
-    match key.code {
-        KeyCode::Esc => {
-            app.mode = Mode::Overview;
-            app.device_details = None;
-            app.device_stats = None;
-        }
-        KeyCode::Char('r') => {
-            if let Some(idx) = app.selected_device_index {
-                if let Some(device) = app.devices.get(idx) {
-                    if let Some(site) = app.sites.first() {
-                        let device_id = device.id;
-                        let site_id = site.id;
-                        let client = app.client.clone();
-
-                        app.dialog = Some(Dialog {
-                            title: "Confirm Restart".to_string(),
-                            message: format!(
-                                "Are you sure you want to restart {}? (y/n)",
-                                device.name
-                            ),
-                            dialog_type: DialogType::Confirmation,
-                            callback: Some(Box::new(move |_app| {
-                                let result = tokio::runtime::Handle::current().block_on(async {
-                                    client.restart_device(site_id, device_id).await
-                                });
-                                result.map_err(anyhow::Error::from)
-                            })),
-                        });
-                    }
-                }
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
 
 async fn handle_client_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
     if key.code == KeyCode::Esc {
         app.mode = Mode::Overview;
     }
+    else if key.code == KeyCode::Char('q') {
+        app.should_quit = true;
+    }
     Ok(())
 }
+
 fn draw_search_bar(f: &mut Frame, area: Rect, app: &App) {
     let area = centered_rect(60, 10, area);
     let search_widget = Paragraph::new(app.search_query.to_string())
@@ -706,10 +678,10 @@ fn draw_overview(f: &mut Frame, area: Rect, app: &App, menu_titles: &[&str]) {
     f.render_widget(tabs, chunks[0]);
 
     match app.current_tab {
-        0 => render_sites(f, chunks[1], app),
-        1 => render_devices(f, chunks[1], app),
-        2 => render_clients(f, chunks[1], app),
-        3 => render_stats(f, chunks[1], app),
+        0 => sites::render_sites(f, chunks[1], app),
+        1 => devices::render_devices(f, chunks[1], app),
+        2 => clients::render_clients(f, chunks[1], app),
+        3 => stats::render_stats(f, chunks[1], app),
         _ => {}
     }
 
@@ -732,514 +704,6 @@ fn draw_overview(f: &mut Frame, area: Rect, app: &App, menu_titles: &[&str]) {
     let help =
         Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
     f.render_widget(help, chunks[2]);
-}
-
-fn render_sites(f: &mut Frame, area: Rect, app: &App) {
-    let sites: Vec<Row> = app
-        .sites
-        .iter()
-        .map(|site| {
-            let cells = vec![
-                Cell::from(site.id.to_string()),
-                Cell::from(site.name.as_deref().unwrap_or("Unnamed")),
-            ];
-            Row::new(cells)
-        })
-        .collect();
-
-    let widths = [Constraint::Percentage(30), Constraint::Percentage(70)];
-
-    let table = Table::new(sites, widths)
-        .header(Row::new(vec!["ID", "Name"]))
-        .block(Block::default().borders(Borders::ALL).title("Sites"))
-        .row_highlight_style(Style::default().bg(Color::Gray))
-        .highlight_symbol("> ");
-
-    f.render_widget(table, area);
-}
-fn render_devices(f: &mut Frame, area: Rect, app: &App) {
-    let selected_style = Style::default().bg(Color::Gray);
-
-    let devices: Vec<Row> = app
-        .filtered_devices
-        .iter()
-        .enumerate()
-        .map(|(idx, device)| {
-            let style = if Some(idx) == app.selected_device_index {
-                selected_style
-            } else {
-                Style::default()
-            };
-
-            let state_style = match device.state {
-                unifi_rs::DeviceState::Online => Style::default().fg(Color::Green),
-                unifi_rs::DeviceState::Offline => Style::default().fg(Color::Red),
-                _ => Style::default().fg(Color::Yellow),
-            };
-
-            let cells = vec![
-                Cell::from(device.name.clone()),
-                Cell::from(device.model.clone()),
-                Cell::from(device.mac_address.clone()),
-                Cell::from(device.ip_address.clone()),
-                Cell::from(format!("{:?}", device.state)).style(state_style),
-                Cell::from(device.features.join(", ")),
-            ];
-            Row::new(cells).style(style)
-        })
-        .collect();
-
-    let header_cells = vec![
-        Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Model").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("MAC").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("IP").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("State").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Features").style(Style::default().add_modifier(Modifier::BOLD)),
-    ];
-
-    let widths = [
-        Constraint::Percentage(20),
-        Constraint::Percentage(15),
-        Constraint::Percentage(20),
-        Constraint::Percentage(15),
-        Constraint::Percentage(15),
-        Constraint::Percentage(15),
-    ];
-
-    let table = Table::new(devices, widths)
-        .header(Row::new(header_cells))
-        .block(Block::default().borders(Borders::ALL).title(format!(
-            "Devices ({}) [{}]",
-            app.filtered_devices.len(),
-            match app.device_sort_order {
-                SortOrder::Ascending => "↑",
-                SortOrder::Descending => "↓",
-                SortOrder::None => "-",
-            }
-        )))
-        .row_highlight_style(selected_style)
-        .highlight_symbol("> ");
-
-    f.render_widget(table, area);
-}
-
-fn render_clients(f: &mut Frame, area: Rect, app: &App) {
-    let selected_style = Style::default().bg(Color::Gray);
-
-    let clients: Vec<Row> = app
-        .filtered_clients
-        .iter()
-        .enumerate()
-        .map(|(idx, client)| {
-            let style = if Some(idx) == app.selected_client_index {
-                selected_style
-            } else {
-                Style::default()
-            };
-
-            let (name, ip, mac, r#type, connected_since, status) = match client {
-                unifi_rs::ClientOverview::Wired(c) => (
-                    c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                    c.base
-                        .ip_address
-                        .as_deref()
-                        .unwrap_or("Unknown")
-                        .to_string(),
-                    c.mac_address.clone(),
-                    Cell::from("Wired").style(Style::default().fg(Color::Blue)),
-                    c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                    Cell::from("Connected").style(Style::default().fg(Color::Green)),
-                ),
-                unifi_rs::ClientOverview::Wireless(c) => (
-                    c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                    c.base
-                        .ip_address
-                        .as_deref()
-                        .unwrap_or("Unknown")
-                        .to_string(),
-                    c.mac_address.clone(),
-                    Cell::from("Wireless").style(Style::default().fg(Color::Yellow)),
-                    c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                    Cell::from("Connected").style(Style::default().fg(Color::Green)),
-                ),
-                _ => (
-                    "Unknown".to_string(),
-                    "Unknown".to_string(),
-                    "Unknown".to_string(),
-                    Cell::from("Other").style(Style::default().fg(Color::Red)),
-                    "Unknown".to_string(),
-                    Cell::from("Unknown").style(Style::default().fg(Color::Red)),
-                ),
-            };
-
-            Row::new(vec![
-                Cell::from(name),
-                Cell::from(ip),
-                Cell::from(mac),
-                r#type,
-                Cell::from(connected_since),
-                status,
-            ])
-            .style(style)
-        })
-        .collect();
-
-    let header_cells = vec![
-        Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("IP").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("MAC").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Type").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Connected Since").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Status").style(Style::default().add_modifier(Modifier::BOLD)),
-    ];
-
-    let widths = [
-        Constraint::Percentage(20),
-        Constraint::Percentage(15),
-        Constraint::Percentage(20),
-        Constraint::Percentage(15),
-        Constraint::Percentage(20),
-        Constraint::Percentage(10),
-    ];
-
-    let table = Table::new(clients, widths)
-        .header(Row::new(header_cells))
-        .block(Block::default().borders(Borders::ALL).title(format!(
-            "Clients ({}) [{}]",
-            app.filtered_clients.len(),
-            match app.client_sort_order {
-                SortOrder::Ascending => "↑",
-                SortOrder::Descending => "↓",
-                SortOrder::None => "-",
-            }
-        )))
-        .row_highlight_style(selected_style)
-        .highlight_symbol("> ");
-
-    f.render_widget(table, area);
-}
-
-fn render_stats(f: &mut Frame, area: Rect, app: &App) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(7), Constraint::Min(0)].as_ref())
-        .split(area);
-
-    let summary_text = vec![
-        Line::from(format!("Total Sites: {}", app.sites.len())),
-        Line::from(format!(
-            "Total Devices: {} ({} online)",
-            app.devices.len(),
-            app.devices
-                .iter()
-                .filter(|d| matches!(d.state, unifi_rs::DeviceState::Online))
-                .count()
-        )),
-        Line::from(format!("Total Clients: {}", app.clients.len())),
-        Line::from(format!(
-            "Wireless Clients: {}",
-            app.clients
-                .iter()
-                .filter(|c| matches!(c, unifi_rs::ClientOverview::Wireless(_)))
-                .count()
-        )),
-        Line::from(format!(
-            "Wired Clients: {}",
-            app.clients
-                .iter()
-                .filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_)))
-                .count()
-        )),
-    ];
-
-    let summary = Paragraph::new(summary_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Network Summary"),
-        )
-        .style(Style::default());
-    f.render_widget(summary, chunks[0]);
-
-    let client_history: Vec<&NetworkStats> = app.stats_history.iter().collect();
-    if !client_history.is_empty() {
-        let total_data: Vec<(f64, f64)> = client_history
-            .iter()
-            .enumerate()
-            .map(|(i, s)| (i as f64, s.client_count as f64))
-            .collect();
-
-        let wireless_data: Vec<(f64, f64)> = client_history
-            .iter()
-            .enumerate()
-            .map(|(i, s)| (i as f64, s.wireless_clients as f64))
-            .collect();
-
-        let wired_data: Vec<(f64, f64)> = client_history
-            .iter()
-            .enumerate()
-            .map(|(i, s)| (i as f64, s.wired_clients as f64))
-            .collect();
-
-        let max_y = client_history
-            .iter()
-            .map(|s| s.client_count as f64)
-            .fold(0.0, f64::max);
-
-        let datasets = vec![
-            Dataset::default()
-                .name("Total")
-                .marker(symbols::Marker::Dot)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(Color::Cyan))
-                .data(&total_data),
-            Dataset::default()
-                .name("Wireless")
-                .marker(symbols::Marker::Dot)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(Color::Yellow))
-                .data(&wireless_data),
-            Dataset::default()
-                .name("Wired")
-                .marker(symbols::Marker::Dot)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(Color::Blue))
-                .data(&wired_data),
-        ];
-
-        let chart = Chart::new(datasets)
-            .block(
-                Block::default()
-                    .title("Client History")
-                    .borders(Borders::ALL),
-            )
-            .x_axis(
-                Axis::default()
-                    .title(Span::styled("Time", Style::default().fg(Color::Gray)))
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, (client_history.len() - 1) as f64])
-                    .labels(
-                        vec![
-                            Span::styled("5m ago", Style::default().fg(Color::Gray)),
-                            Span::styled("Now", Style::default().fg(Color::Gray)),
-                        ]
-                        .into_iter()
-                        .map(Line::from)
-                        .collect::<Vec<Line>>(),
-                    ),
-            )
-            .y_axis(
-                Axis::default()
-                    .title(Span::styled("Clients", Style::default().fg(Color::Gray)))
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, max_y * 1.1])
-                    .labels(
-                        vec![
-                            Span::styled("0", Style::default().fg(Color::Gray)),
-                            Span::styled(
-                                format!("{}", max_y as i32),
-                                Style::default().fg(Color::Gray),
-                            ),
-                        ]
-                        .into_iter()
-                        .map(Line::from)
-                        .collect::<Vec<Line>>(),
-                    ),
-            );
-
-        f.render_widget(chart, chunks[1]);
-    }
-}
-
-fn draw_device_detail(f: &mut Frame, area: Rect, app: &App) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(1)
-        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
-        .split(area);
-
-    let selected_device = app
-        .selected_device_index
-        .and_then(|idx| app.filtered_devices.get(idx));
-
-    if let Some(device) = selected_device {
-        let state_style = match device.state {
-            unifi_rs::DeviceState::Online => Style::default().fg(Color::Green),
-            unifi_rs::DeviceState::Offline => Style::default().fg(Color::Red),
-            _ => Style::default().fg(Color::Yellow),
-        };
-
-        let mut details_text = vec![
-            Line::from(vec![
-                Span::raw("Name: "),
-                Span::styled(&device.name, Style::default().add_modifier(Modifier::BOLD)),
-            ]),
-            Line::from(vec![
-                Span::raw("Model: "),
-                Span::styled(&device.model, Style::default().add_modifier(Modifier::BOLD)),
-            ]),
-            Line::from(vec![
-                Span::raw("MAC: "),
-                Span::styled(
-                    &device.mac_address,
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
-            ]),
-            Line::from(vec![
-                Span::raw("IP: "),
-                Span::styled(
-                    &device.ip_address,
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
-            ]),
-            Line::from(vec![
-                Span::raw("State: "),
-                Span::styled(format!("{:?}", device.state), state_style),
-            ]),
-            Line::from(vec![
-                Span::raw("Features: "),
-                Span::styled(device.features.join(", "), Style::default()),
-            ]),
-            Line::from(""),
-        ];
-
-        if let Some(stats) = &app.device_stats {
-            details_text.extend(vec![
-                Line::from(format!("Uptime: {} hours", stats.uptime_sec / 3600)),
-                Line::from(format!(
-                    "CPU: {}%",
-                    stats.cpu_utilization_pct.unwrap_or(0.0)
-                )),
-                Line::from(format!(
-                    "Memory: {}%",
-                    stats.memory_utilization_pct.unwrap_or(0.0)
-                )),
-            ]);
-        }
-
-        let content = Paragraph::new(details_text)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Device Details"),
-            )
-            .wrap(Wrap { trim: true });
-        f.render_widget(content, chunks[0]);
-    }
-
-    let help_text = vec![Line::from("ESC: Back | r: Restart Device | q: Quit")];
-    let help =
-        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
-    f.render_widget(help, chunks[1]);
-}
-
-fn draw_client_detail(f: &mut Frame, area: Rect, app: &App) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(1)
-        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
-        .split(area);
-
-    let selected_client = app
-        .selected_client_index
-        .and_then(|idx| app.filtered_clients.get(idx));
-
-    if let Some(client) = selected_client {
-        let details_text = match client {
-            unifi_rs::ClientOverview::Wired(c) => vec![
-                Line::from(vec![
-                    Span::raw("Name: "),
-                    Span::styled(
-                        c.base.name.as_deref().unwrap_or("Unnamed"),
-                        Style::default().add_modifier(Modifier::BOLD),
-                    ),
-                ]),
-                Line::from(vec![
-                    Span::raw("Type: "),
-                    Span::styled("Wired", Style::default().fg(Color::Blue)),
-                ]),
-                Line::from(vec![
-                    Span::raw("MAC: "),
-                    Span::styled(
-                        &c.mac_address,
-                        Style::default().add_modifier(Modifier::BOLD),
-                    ),
-                ]),
-                Line::from(vec![
-                    Span::raw("IP: "),
-                    Span::styled(
-                        c.base.ip_address.as_deref().unwrap_or("Unknown"),
-                        Style::default().add_modifier(Modifier::BOLD),
-                    ),
-                ]),
-                Line::from(vec![
-                    Span::raw("Connected Since: "),
-                    Span::styled(
-                        c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                        Style::default(),
-                    ),
-                ]),
-                Line::from(vec![
-                    Span::raw("Uplink Device: "),
-                    Span::styled(c.uplink_device_id.to_string(), Style::default()),
-                ]),
-            ],
-            unifi_rs::ClientOverview::Wireless(c) => vec![
-                Line::from(vec![
-                    Span::raw("Name: "),
-                    Span::styled(
-                        c.base.name.as_deref().unwrap_or("Unnamed"),
-                        Style::default().add_modifier(Modifier::BOLD),
-                    ),
-                ]),
-                Line::from(vec![
-                    Span::raw("Type: "),
-                    Span::styled("Wireless", Style::default().fg(Color::Yellow)),
-                ]),
-                Line::from(vec![
-                    Span::raw("MAC: "),
-                    Span::styled(
-                        &c.mac_address,
-                        Style::default().add_modifier(Modifier::BOLD),
-                    ),
-                ]),
-                Line::from(vec![
-                    Span::raw("IP: "),
-                    Span::styled(
-                        c.base.ip_address.as_deref().unwrap_or("Unknown"),
-                        Style::default().add_modifier(Modifier::BOLD),
-                    ),
-                ]),
-                Line::from(vec![
-                    Span::raw("Connected Since: "),
-                    Span::styled(
-                        c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                        Style::default(),
-                    ),
-                ]),
-                Line::from(vec![
-                    Span::raw("Uplink Device: "),
-                    Span::styled(c.uplink_device_id.to_string(), Style::default()),
-                ]),
-            ],
-            _ => vec![Line::from("Unknown client type")],
-        };
-
-        let content = Paragraph::new(details_text)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Client Details"),
-            )
-            .wrap(Wrap { trim: true });
-        f.render_widget(content, chunks[0]);
-    }
-
-    let help_text = vec![Line::from("ESC: Back | q: Quit")];
-    let help =
-        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
-    f.render_widget(help, chunks[1]);
 }
 
 fn draw_dialog(f: &mut Frame, area: Rect, dialog: &Dialog) {
