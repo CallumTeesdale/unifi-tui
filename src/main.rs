@@ -60,11 +60,10 @@ impl App {
 
     async fn refresh_data(&mut self) -> Result<()> {
         if self.last_update.elapsed() >= self.refresh_interval {
-            // Get sites
+
             let sites = self.client.list_sites(None, None).await?;
             self.sites = sites.data;
 
-            // Get data for the first site
             if let Some(site) = self.sites.first() {
                 let devices = self.client.list_devices(site.id, None, None).await?;
                 self.devices = devices.data;
