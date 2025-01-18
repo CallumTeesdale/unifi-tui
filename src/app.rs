@@ -8,13 +8,16 @@ pub enum Mode {
     Overview,
     DeviceDetail,
     ClientDetail,
+    #[allow(dead_code)]
     Help,
 }
 
 #[derive(PartialEq, Clone)]
 pub enum DialogType {
     Confirmation,
+    #[allow(dead_code)] // Not used yet
     Message,
+    #[allow(dead_code)] // Not used yet
     Error,
 }
 
@@ -85,12 +88,7 @@ impl App {
             .await
             .map_err(|e| anyhow::anyhow!(e.to_string()))
     }
-
-    pub fn handle_search(&mut self, query: &str) {
-        self.search_query = query.to_string();
-        self.state.apply_filters();
-    }
-
+    
     pub fn sort_devices(&mut self) {
         if matches!(self.device_sort_order, SortOrder::None) {
             return;

@@ -12,13 +12,7 @@ pub struct SiteContext {
 }
 
 #[derive(Clone)]
-pub struct ClientStatistics {
-    pub tx_history: Vec<(f64, f64)>,
-    pub rx_history: Vec<(f64, f64)>,
-    pub last_update: Instant,
-}
-
-#[derive(Clone)]
+#[allow(dead_code)]
 pub struct NetworkStats {
     pub timestamp: DateTime<Utc>,
     pub site_id: Option<Uuid>,
@@ -28,13 +22,15 @@ pub struct NetworkStats {
     pub device_stats: Vec<DeviceMetrics>,
 }
 
+#[allow(dead_code)]
 pub struct NetworkThroughput {
     pub timestamp: DateTime<Utc>,
-    pub tx_rate: f64, // in Mbps
-    pub rx_rate: f64, // in Mbps
+    pub tx_rate: f64,
+    pub rx_rate: f64,
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct DeviceMetrics {
     pub device_id: Uuid,
     pub device_name: String,

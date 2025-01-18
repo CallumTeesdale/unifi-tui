@@ -37,14 +37,6 @@ pub fn render_sites(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let is_selected = app.state.selected_site.is_none();
-
-    let style = if is_selected {
-        Style::default()
-    } else {
-        Style::default()
-    };
-
     let header = Row::new(vec![
         Cell::from("ID").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
