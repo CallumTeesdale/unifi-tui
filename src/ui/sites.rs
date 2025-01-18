@@ -1,4 +1,4 @@
-use crate::app::{App};
+use crate::app::App;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Line;
@@ -38,7 +38,7 @@ pub fn render_sites(f: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     let is_selected = app.state.selected_site.is_none();
-    
+
     let style = if is_selected {
         Style::default()
     } else {
@@ -58,7 +58,7 @@ pub fn render_sites(f: &mut Frame, app: &App, area: Rect) {
         .row_highlight_style(Style::default().bg(Color::Gray));
 
     f.render_stateful_widget(table, chunks[0], &mut app.sites_table_state.clone());
-    
+
     let help_text = vec![Line::from(
         "↑/↓: Select site | Enter: View site | Esc: Show all sites",
     )];

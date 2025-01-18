@@ -1,5 +1,5 @@
-use chrono::Utc;
 use crate::state::AppState;
+use chrono::Utc;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -22,7 +22,6 @@ impl<'a> ClientStatsView<'a> {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect) {
-        
         if let Some(client) = self.app_state.clients.iter().find(|c| match c {
             ClientOverview::Wireless(w) => w.base.id == self.client_id,
             ClientOverview::Wired(w) => w.base.id == self.client_id,
@@ -52,18 +51,18 @@ impl<'a> ClientStatsView<'a> {
         &self,
         f: &mut Frame,
         area: Rect,
-        client: &unifi_rs::WirelessClientOverview
+        client: &unifi_rs::WirelessClientOverview,
     ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(8),  // Connection info
-                Constraint::Length(3),  // Duration gauge
-                Constraint::Length(7),  // Device info
-                Constraint::Min(0),     // Network stats
+                Constraint::Length(8), // Connection info
+                Constraint::Length(3), // Duration gauge
+                Constraint::Length(7), // Device info
+                Constraint::Min(0),    // Network stats
             ])
             .split(area);
-        
+
         let info_text = vec![
             Line::from(vec![
                 Span::styled("Name: ", Style::default()),
@@ -74,10 +73,7 @@ impl<'a> ClientStatsView<'a> {
             ]),
             Line::from(vec![
                 Span::styled("MAC Address: ", Style::default()),
-                Span::styled(
-                    &client.mac_address,
-                    Style::default()
-                ),
+                Span::styled(&client.mac_address, Style::default()),
             ]),
             Line::from(vec![
                 Span::styled("IP Address: ", Style::default()),
@@ -89,7 +85,11 @@ impl<'a> ClientStatsView<'a> {
             Line::from(vec![
                 Span::styled("Connected Since: ", Style::default()),
                 Span::styled(
-                    client.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    client
+                        .base
+                        .connected_at
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                     Style::default(),
                 ),
             ]),
@@ -102,28 +102,34 @@ impl<'a> ClientStatsView<'a> {
             ]),
         ];
 
-        let info = Paragraph::new(info_text)
-            .block(Block::default()
+        let info = Paragraph::new(info_text).block(
+            Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default())
-                .title("Connection Info"));
+                .title("Connection Info"),
+        );
         f.render_widget(info, chunks[0]);
-        
+
         let uptime = Utc::now().signed_duration_since(client.base.connected_at);
         let uptime_pct = (uptime.num_minutes() as f64 / (24.0 * 60.0)).min(1.0);
         let uptime_gauge = Gauge::default()
-            .block(Block::default()
-                .title("Session Duration (% of 24h)")
-                .borders(Borders::ALL)
-                .border_style(Style::default()))
+            .block(
+                Block::default()
+                    .title("Session Duration (% of 24h)")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default()),
+            )
             .gauge_style(Style::default())
             .ratio(uptime_pct)
             .label(format!("{:.1}%", uptime_pct * 100.0));
         f.render_widget(uptime_gauge, chunks[1]);
-        
-        if let Some(device) = self.app_state.devices.iter()
-            .find(|d| d.id == client.uplink_device_id) {
 
+        if let Some(device) = self
+            .app_state
+            .devices
+            .iter()
+            .find(|d| d.id == client.uplink_device_id)
+        {
             let device_text = vec![
                 Line::from(vec![
                     Span::styled("Connected to: ", Style::default()),
@@ -146,11 +152,12 @@ impl<'a> ClientStatsView<'a> {
                 ]),
             ];
 
-            let device_info = Paragraph::new(device_text)
-                .block(Block::default()
+            let device_info = Paragraph::new(device_text).block(
+                Block::default()
                     .borders(Borders::ALL)
                     .border_style(Style::default())
-                    .title("Connected Device"));
+                    .title("Connected Device"),
+            );
             f.render_widget(device_info, chunks[2]);
         }
     }
@@ -159,18 +166,18 @@ impl<'a> ClientStatsView<'a> {
         &self,
         f: &mut Frame,
         area: Rect,
-        client: &unifi_rs::WiredClientOverview
+        client: &unifi_rs::WiredClientOverview,
     ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(8),  // Connection info
-                Constraint::Length(3),  // Duration gauge
-                Constraint::Length(7),  // Device info
-                Constraint::Min(0),     // Network stats
+                Constraint::Length(8), // Connection info
+                Constraint::Length(3), // Duration gauge
+                Constraint::Length(7), // Device info
+                Constraint::Min(0),    // Network stats
             ])
             .split(area);
-        
+
         let info_text = vec![
             Line::from(vec![
                 Span::styled("Name: ", Style::default()),
@@ -181,10 +188,7 @@ impl<'a> ClientStatsView<'a> {
             ]),
             Line::from(vec![
                 Span::styled("MAC Address: ", Style::default()),
-                Span::styled(
-                    &client.mac_address,
-                    Style::default(),
-                ),
+                Span::styled(&client.mac_address, Style::default()),
             ]),
             Line::from(vec![
                 Span::styled("IP Address: ", Style::default()),
@@ -196,7 +200,11 @@ impl<'a> ClientStatsView<'a> {
             Line::from(vec![
                 Span::styled("Connected Since: ", Style::default()),
                 Span::styled(
-                    client.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    client
+                        .base
+                        .connected_at
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                     Style::default(),
                 ),
             ]),
@@ -209,30 +217,36 @@ impl<'a> ClientStatsView<'a> {
             ]),
         ];
 
-        let info = Paragraph::new(info_text)
-            .block(Block::default()
+        let info = Paragraph::new(info_text).block(
+            Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default())
-                .title("Connection Info"));
+                .title("Connection Info"),
+        );
         f.render_widget(info, chunks[0]);
 
         // Duration Gauge
         let uptime = Utc::now().signed_duration_since(client.base.connected_at);
         let uptime_pct = (uptime.num_minutes() as f64 / (24.0 * 60.0)).min(1.0);
         let uptime_gauge = Gauge::default()
-            .block(Block::default()
-                .title("Session Duration (% of 24h)")
-                .borders(Borders::ALL)
-                .border_style(Style::default()))
+            .block(
+                Block::default()
+                    .title("Session Duration (% of 24h)")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default()),
+            )
             .gauge_style(Style::default())
             .ratio(uptime_pct)
             .label(format!("{:.1}%", uptime_pct * 100.0));
         f.render_widget(uptime_gauge, chunks[1]);
 
         // Connected Device Info
-        if let Some(device) = self.app_state.devices.iter()
-            .find(|d| d.id == client.uplink_device_id) {
-
+        if let Some(device) = self
+            .app_state
+            .devices
+            .iter()
+            .find(|d| d.id == client.uplink_device_id)
+        {
             let device_text = vec![
                 Line::from(vec![
                     Span::styled("Connected to: ", Style::default()),
@@ -255,11 +269,12 @@ impl<'a> ClientStatsView<'a> {
                 ]),
             ];
 
-            let device_info = Paragraph::new(device_text)
-                .block(Block::default()
+            let device_info = Paragraph::new(device_text).block(
+                Block::default()
                     .borders(Borders::ALL)
                     .border_style(Style::default())
-                    .title("Connected Device"));
+                    .title("Connected Device"),
+            );
             f.render_widget(device_info, chunks[2]);
         }
     }

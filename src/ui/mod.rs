@@ -4,6 +4,7 @@ pub mod sites;
 pub mod stats;
 pub mod status_bar;
 pub mod widgets;
+use crate::app::{App, DialogType, Mode};
 use crate::ui::{
     clients::render_clients, devices::render_devices, sites::render_sites, stats::render_stats,
     status_bar::render_status_bar,
@@ -14,7 +15,6 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
 use ratatui::Frame;
-use crate::app::{App, DialogType, Mode};
 
 pub fn render(app: &mut App, f: &mut Frame) {
     let size = f.area();
@@ -157,10 +157,12 @@ fn render_search(f: &mut Frame, app: &App, area: Rect) {
 fn render_error(f: &mut Frame, error: &str, area: Rect) {
     let area = centered_rect(60, 3, area);
     let error_widget = Paragraph::new(error)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default())
-            .title("Error"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default())
+                .title("Error"),
+        )
         .style(Style::default());
     f.render_widget(Clear, area);
     f.render_widget(error_widget, area);

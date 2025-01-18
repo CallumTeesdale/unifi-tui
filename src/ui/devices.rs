@@ -8,10 +8,11 @@ use unifi_rs::DeviceState;
 
 pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
     let header = Row::new(vec!["Name", "Model", "MAC", "IP", "State"])
-        .style(Style::default()
-            .add_modifier(Modifier::BOLD));
+        .style(Style::default().add_modifier(Modifier::BOLD));
 
-    let devices: Vec<Row> = app.state.filtered_devices
+    let devices: Vec<Row> = app
+        .state
+        .filtered_devices
         .iter()
         .map(|device| {
             let state_style = match device.state {
@@ -37,14 +38,15 @@ pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
         Constraint::Percentage(15),
         Constraint::Percentage(10),
     ];
-    
+
     let table = Table::new(devices, widths)
         .header(header)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default()))
-        .row_highlight_style(Style::default()
-            )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default()),
+        )
+        .row_highlight_style(Style::default())
         .highlight_symbol("➤ ");
 
     f.render_stateful_widget(table, area, &mut app.devices_table_state);
