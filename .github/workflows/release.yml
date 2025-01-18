@@ -29,24 +29,11 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Install dependencies
-        run: sudo apt-get install -y pkg-config libssl-dev
-
-      - name: Verify OpenSSL installation
-        run: |
-          pkg-config --modversion openssl
-          ls -l /usr/lib/x86_64-linux-gnu/pkgconfig/openssl.pc
-          ls -l /usr/lib/ssl
 
       - name: Install cross
         run: cargo install cross
 
       - name: Build with cross
-        env:
-          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig
-          OPENSSL_DIR: /usr/lib/ssl
-          OPENSSL_LIB_DIR: /usr/lib/x86_64-linux-gnu
-          OPENSSL_INCLUDE_DIR: /usr/include/openssl
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Archive binaries
