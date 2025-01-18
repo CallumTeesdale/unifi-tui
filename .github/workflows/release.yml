@@ -29,7 +29,6 @@ jobs:
           toolchain: stable
           override: true
 
-
       - name: Install cross
         run: cargo install cross
 
@@ -59,6 +58,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: unifi-tui-x86_64-unknown-linux-gnu
+          path: release/
+
+      - name: Download Windows binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: unifi-tui-x86_64-pc-windows-gnu
+          path: release/
+
       - name: Extract version from tag
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
@@ -80,8 +91,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            release/unifi-tui-x86_64-unknown-linux-gnu
-            release/unifi-tui-x86_64-pc-windows-gnu
+            release/unifi-tui-x86_64-unknown-linux-gnu/unifi-tui-x86_64-unknown-linux-gnu
+            release/unifi-tui-x86_64-pc-windows-gnu/unifi-tui-x86_64-pc-windows-gnu.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
