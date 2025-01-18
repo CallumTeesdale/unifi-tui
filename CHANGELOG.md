@@ -1,6 +1,18 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.20] - 2025-01-18
+
+### Ci
+
+- Lock to 0.1.19
+- Ssl errors
+- Ssl errors
+- Ssl errors
+- Ssl errors
+- Ssl errors
+- Windows build binary
+
 ## [0.1.19] - 2025-01-18
 
 ### Ci
