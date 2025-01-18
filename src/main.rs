@@ -1,28 +1,27 @@
+mod app;
+mod error;
+mod handlers;
+mod state;
+mod ui;
+
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use clap::Parser;
-use crossterm::event::KeyEvent;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{
-    prelude::*,
-    style::{Color, Modifier, Style},
-    widgets::*,
-};
-use std::{
-    collections::VecDeque,
-    io,
-    time::{Duration, Instant},
-};
-use unifi_rs::{DeviceDetails, DeviceStatistics, UnifiClient, UnifiClientBuilder};
+use ratatui::prelude::*;
+use std::{io, time::Duration};
+use unifi_rs::UnifiClientBuilder;
 
-mod devices;
-mod clients;
-mod stats;
-mod sites;
+use crate::app::{App, Mode};
+use crate::handlers::{
+    handle_client_detail_input, handle_device_detail_input, handle_dialog_input,
+    handle_global_input, handle_search_input,
+};
+use crate::state::AppState;
+use crate::ui::render;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -40,312 +39,6 @@ struct Cli {
     insecure: bool,
 }
 
-#[derive(PartialEq, Clone)]
-enum Mode {
-    Overview,
-    DeviceDetail,
-    ClientDetail,
-    #[allow(dead_code)]
-    Help,
-}
-
-#[derive(PartialEq, Clone)]
-enum DialogType {
-    Confirmation,
-    #[allow(dead_code)]
-    Message,
-    #[allow(dead_code)]
-    Error,
-}
-
-#[derive(Clone, Copy)]
-enum SortOrder {
-    Ascending,
-    Descending,
-    None,
-}
-
-type Callback = Box<dyn FnOnce(&mut App) -> Result<()> + Send>;
-struct Dialog {
-    title: String,
-    message: String,
-    dialog_type: DialogType,
-    callback: Option<Callback>,
-}
-
-#[derive(Clone)]
-struct NetworkStats {
-    timestamp: DateTime<Utc>,
-    client_count: usize,
-    wireless_clients: usize,
-    wired_clients: usize,
-    cpu_utilization: Vec<(String, f64)>,
-    memory_utilization: Vec<(String, f64)>,
-}
-
-struct App {
-    client: UnifiClient,
-    sites: Vec<unifi_rs::SiteOverview>,
-    devices: Vec<unifi_rs::DeviceOverview>,
-    clients: Vec<unifi_rs::ClientOverview>,
-    filtered_devices: Vec<unifi_rs::DeviceOverview>,
-    filtered_clients: Vec<unifi_rs::ClientOverview>,
-    current_tab: usize,
-    selected_device_index: Option<usize>,
-    selected_client_index: Option<usize>,
-    device_details: Option<DeviceDetails>,
-    device_stats: Option<DeviceStatistics>,
-    stats_history: VecDeque<NetworkStats>,
-    should_quit: bool,
-    refresh_interval: Duration,
-    last_update: Instant,
-    mode: Mode,
-    dialog: Option<Dialog>,
-    search_mode: bool,
-    search_query: String,
-    error_message: Option<String>,
-    error_timestamp: Option<Instant>,
-    device_sort_column: usize,
-    device_sort_order: SortOrder,
-    client_sort_column: usize,
-    client_sort_order: SortOrder,
-    show_help: bool,
-}
-
-impl App {
-    async fn new(url: String, api_key: String, insecure: bool) -> Result<App> {
-        let client = UnifiClientBuilder::new(url)
-            .api_key(api_key)
-            .verify_ssl(!insecure)
-            .build()?;
-
-        Ok(App {
-            client,
-            sites: Vec::new(),
-            devices: Vec::new(),
-            clients: Vec::new(),
-            filtered_devices: Vec::new(),
-            filtered_clients: Vec::new(),
-            current_tab: 0,
-            selected_device_index: None,
-            selected_client_index: None,
-            device_details: None,
-            device_stats: None,
-            stats_history: VecDeque::with_capacity(100),
-            should_quit: false,
-            refresh_interval: Duration::from_secs(5),
-            last_update: Instant::now(),
-            mode: Mode::Overview,
-            dialog: None,
-            search_mode: false,
-            search_query: String::new(),
-            error_message: None,
-            error_timestamp: None,
-            device_sort_column: 0,
-            device_sort_order: SortOrder::None,
-            client_sort_column: 0,
-            client_sort_order: SortOrder::None,
-            show_help: false,
-        })
-    }
-
-    async fn refresh_data(&mut self) -> Result<()> {
-        if self.last_update.elapsed() >= self.refresh_interval {
-            let sites = self.client.list_sites(None, None).await?;
-            self.sites = sites.data;
-
-            if let Some(site) = self.sites.first() {
-                let devices = self.client.list_devices(site.id, None, None).await?;
-                self.devices = devices.data;
-                self.filtered_devices = self.devices.clone();
-
-                let clients = self.client.list_clients(site.id, None, None).await?;
-                self.clients = clients.data;
-                self.filtered_clients = self.clients.clone();
-
-                if let Some(idx) = self.selected_device_index {
-                    if let Some(device) = self.devices.get(idx) {
-                        self.device_details = self
-                            .client
-                            .get_device_details(site.id, device.id)
-                            .await
-                            .ok();
-                        self.device_stats = self
-                            .client
-                            .get_device_statistics(site.id, device.id)
-                            .await
-                            .ok();
-                    }
-                }
-
-                let stats = NetworkStats {
-                    timestamp: Utc::now(),
-                    client_count: self.clients.len(),
-                    wireless_clients: self
-                        .clients
-                        .iter()
-                        .filter(|c| matches!(c, unifi_rs::ClientOverview::Wireless(_)))
-                        .count(),
-                    wired_clients: self
-                        .clients
-                        .iter()
-                        .filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_)))
-                        .count(),
-                    cpu_utilization: Vec::new(),
-                    memory_utilization: Vec::new(),
-                };
-
-                if self.stats_history.len() >= 100 {
-                    self.stats_history.pop_front();
-                }
-                self.stats_history.push_back(stats);
-            }
-
-            self.last_update = Instant::now();
-
-            self.sort_devices();
-            self.sort_clients();
-
-            if !self.search_query.is_empty() {
-                self.apply_filters();
-            }
-        }
-        Ok(())
-    }
-
-    fn sort_devices(&mut self) {
-        if let SortOrder::None = self.device_sort_order {
-            return;
-        }
-
-        self.filtered_devices.sort_by(|a, b| {
-            let cmp = match self.device_sort_column {
-                0 => a.name.cmp(&b.name),
-                1 => a.model.cmp(&b.model),
-                2 => a.mac_address.cmp(&b.mac_address),
-                3 => a.ip_address.cmp(&b.ip_address),
-                4 => format!("{:?}", a.state).cmp(&format!("{:?}", b.state)), // TODO: Change DeviceState to implement to string
-                _ => std::cmp::Ordering::Equal,
-            };
-            match self.device_sort_order {
-                SortOrder::Ascending => cmp,
-                SortOrder::Descending => cmp.reverse(),
-                SortOrder::None => cmp,
-            }
-        });
-    }
-
-    fn sort_clients(&mut self) {
-        if let SortOrder::None = self.client_sort_order {
-            return;
-        }
-
-        self.filtered_clients.sort_by(|a, b| {
-            let (a_name, a_ip, a_mac) = match a {
-                unifi_rs::ClientOverview::Wired(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
-                ),
-                unifi_rs::ClientOverview::Wireless(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
-                ),
-                _ => ("", "", ""),
-            };
-
-            let (b_name, b_ip, b_mac) = match b {
-                unifi_rs::ClientOverview::Wired(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
-                ),
-                unifi_rs::ClientOverview::Wireless(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
-                ),
-                _ => ("", "", ""),
-            };
-
-            let cmp = match self.client_sort_column {
-                0 => a_name.cmp(b_name),
-                1 => a_ip.cmp(b_ip),
-                2 => a_mac.cmp(b_mac),
-                _ => std::cmp::Ordering::Equal,
-            };
-            match self.client_sort_order {
-                SortOrder::Ascending => cmp,
-                SortOrder::Descending => cmp.reverse(),
-                SortOrder::None => cmp,
-            }
-        });
-    }
-
-    fn apply_filters(&mut self) {
-        let query = self.search_query.to_lowercase();
-
-        self.filtered_devices = self
-            .devices
-            .iter()
-            .filter(|d| {
-                d.name.to_lowercase().contains(&query)
-                    || d.model.to_lowercase().contains(&query)
-                    || d.mac_address.to_lowercase().contains(&query)
-                    || d.ip_address.to_lowercase().contains(&query)
-            })
-            .cloned()
-            .collect();
-
-        self.filtered_clients = self
-            .clients
-            .iter()
-            .filter(|c| match c {
-                unifi_rs::ClientOverview::Wired(wc) => {
-                    wc.base
-                        .name
-                        .as_deref()
-                        .unwrap_or("")
-                        .to_lowercase()
-                        .contains(&query)
-                        || wc
-                            .base
-                            .ip_address
-                            .as_deref()
-                            .unwrap_or("")
-                            .to_lowercase()
-                            .contains(&query)
-                        || wc.mac_address.to_lowercase().contains(&query)
-                }
-                unifi_rs::ClientOverview::Wireless(wc) => {
-                    wc.base
-                        .name
-                        .as_deref()
-                        .unwrap_or("")
-                        .to_lowercase()
-                        .contains(&query)
-                        || wc
-                            .base
-                            .ip_address
-                            .as_deref()
-                            .unwrap_or("")
-                            .to_lowercase()
-                            .contains(&query)
-                        || wc.mac_address.to_lowercase().contains(&query)
-                }
-                _ => false,
-            })
-            .cloned()
-            .collect();
-    }
-
-    fn set_error(&mut self, message: String) {
-        self.error_message = Some(message);
-        self.error_timestamp = Some(Instant::now());
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -356,7 +49,14 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let app = App::new(cli.url, cli.api_key, cli.insecure).await?;
+    let client = UnifiClientBuilder::new(cli.url)
+        .api_key(cli.api_key)
+        .verify_ssl(!cli.insecure)
+        .build()?;
+
+    let state = AppState::new(client).await?;
+    let app = App::new(state).await?;
+
     let res = run_app(&mut terminal, app).await;
 
     disable_raw_mode()?;
@@ -374,110 +74,51 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
-    let menu_titles = vec!["Sites", "Devices", "Clients", "Stats"];
-
+async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
     loop {
-        if app.dialog.is_none() {
-            if let Err(e) = app.refresh_data().await {
-                app.set_error(format!("Error refreshing data: {}", e));
-            }
-        }
-
-        terminal.draw(|f| {
-            let size = f.area();
-
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
-                .split(size);
-
-            if let Some(dialog) = &app.dialog {
-                draw_dialog(f, chunks[0], dialog);
-            } else if app.show_help {
-                draw_help(f, chunks[0]);
-            } else {
-                match app.mode {
-                    Mode::Overview => draw_overview(f, chunks[0], &app, &menu_titles),
-                    Mode::DeviceDetail => devices::draw_device_detail(f, chunks[0], &app),
-                    Mode::ClientDetail => clients::draw_client_detail(f, chunks[0], &app),
-                    Mode::Help => draw_help(f, chunks[0]),
-                }
-            }
-
-            draw_status_bar(f, chunks[1], &app);
-
-            if let Some(error) = &app.error_message {
-                if let Some(timestamp) = app.error_timestamp {
-                    if timestamp.elapsed() < Duration::from_secs(5) {
-                        draw_error(f, size, error);
-                    } else {
-                        app.error_message = None;
-                        app.error_timestamp = None;
-                    }
-                }
-            }
-
-            if app.search_mode {
-                draw_search_bar(f, size, &app);
-            }
-        })?;
+        terminal.draw(|f| render(&mut app, f))?;
 
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                if let Some(dialog) = &app.dialog {
-                    match key.code {
-                        KeyCode::Char('y') if dialog.dialog_type == DialogType::Confirmation => {
-                            if let Some(callback) = app.dialog.take().and_then(|d| d.callback) {
-                                if let Err(e) = callback(&mut app) {
-                                    app.set_error(format!("Operation failed: {}", e));
-                                }
-                            }
-                        }
-                        KeyCode::Char('n') | KeyCode::Esc => app.dialog = None,
-                        _ => {}
-                    }
+                if handle_global_input(&mut app, key).await? {
                     continue;
                 }
 
-                if app.search_mode {
-                    match key.code {
-                        KeyCode::Esc => {
-                            app.search_mode = false;
-                            app.search_query.clear();
-                            app.filtered_devices = app.devices.clone();
-                            app.filtered_clients = app.clients.clone();
-                        }
-                        KeyCode::Char(c) => {
-                            app.search_query.push(c);
-                            app.apply_filters();
-                        }
-                        KeyCode::Backspace => {
-                            app.search_query.pop();
-                            app.apply_filters();
-                        }
-                        _ => {}
-                    }
-                    continue;
-                }
-
-                if app.show_help {
+                if app.dialog.is_some() {
+                    handle_dialog_input(&mut app, key).await?;
+                } else if app.search_mode {
+                    handle_search_input(&mut app, key).await?;
+                } else if app.show_help {
                     if key.code == KeyCode::Esc {
                         app.show_help = false;
                     }
-                    continue;
-                }
-
-                match app.mode {
-                    Mode::Overview => handle_overview_input(&mut app, key).await?,
-                    Mode::DeviceDetail => devices::handle_device_detail_input(&mut app, key).await?,
-                    Mode::ClientDetail => handle_client_input(&mut app, key).await?,
-                    Mode::Help => {
-                        if key.code == KeyCode::Esc {
-                            app.mode = Mode::Overview;
+                } else {
+                    match app.mode {
+                        Mode::Overview => match app.current_tab {
+                            0 => ui::sites::handle_sites_input(&mut app, key)?,
+                            1 => ui::devices::handle_device_input(&mut app, key).await?,
+                            2 => ui::clients::handle_client_input(&mut app, key).await?,
+                            _ => {}
+                        },
+                        Mode::DeviceDetail => {
+                            handle_device_detail_input(&mut app, key).await?;
+                        }
+                        Mode::ClientDetail => {
+                            handle_client_detail_input(&mut app, key).await?;
+                        }
+                        Mode::Help => {
+                            if key.code == KeyCode::Esc {
+                                app.mode = Mode::Overview;
+                            }
                         }
                     }
                 }
+            }
+        }
+
+        if app.dialog.is_none() {
+            if let Err(e) = app.refresh().await {
+                app.state.set_error(format!("Error refreshing data: {}", e));
             }
         }
 
@@ -487,272 +128,4 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
     }
 
     Ok(())
-}
-
-async fn handle_overview_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
-    match key.code {
-        KeyCode::Char('q') => app.should_quit = true,
-        KeyCode::Char('?') => app.show_help = !app.show_help,
-        KeyCode::Char('/') => {
-            app.search_mode = true;
-            app.search_query.clear();
-        }
-        KeyCode::Tab => app.current_tab = (app.current_tab + 1) % 4,
-        KeyCode::BackTab => app.current_tab = (app.current_tab + 3) % 4,
-        KeyCode::Char('r') => app.last_update = Instant::now() - app.refresh_interval,
-        KeyCode::Char('s') => match app.current_tab {
-            1 => {
-                match app.device_sort_order {
-                    SortOrder::None => app.device_sort_order = SortOrder::Ascending,
-                    SortOrder::Ascending => app.device_sort_order = SortOrder::Descending,
-                    SortOrder::Descending => app.device_sort_order = SortOrder::None,
-                }
-                app.sort_devices();
-            }
-            2 => {
-                match app.client_sort_order {
-                    SortOrder::None => app.client_sort_order = SortOrder::Ascending,
-                    SortOrder::Ascending => app.client_sort_order = SortOrder::Descending,
-                    SortOrder::Descending => app.client_sort_order = SortOrder::None,
-                }
-                app.sort_clients();
-            }
-            _ => {}
-        },
-        KeyCode::Down => match app.current_tab {
-            1 => {
-                // Devices tab
-                if let Some(idx) = app.selected_device_index {
-                    app.selected_device_index =
-                        Some((idx + 1).min(app.filtered_devices.len().saturating_sub(1)));
-                } else if !app.filtered_devices.is_empty() {
-                    app.selected_device_index = Some(0);
-                }
-            }
-            2 => {
-                // Clients tab
-                if let Some(idx) = app.selected_client_index {
-                    app.selected_client_index =
-                        Some((idx + 1).min(app.filtered_clients.len().saturating_sub(1)));
-                } else if !app.filtered_clients.is_empty() {
-                    app.selected_client_index = Some(0);
-                }
-            }
-            _ => {}
-        },
-        KeyCode::Up => match app.current_tab {
-            1 => {
-                // Devices tab
-                if let Some(idx) = app.selected_device_index {
-                    app.selected_device_index = Some(idx.saturating_sub(1));
-                }
-            }
-            2 => {
-                // Clients tab
-                if let Some(idx) = app.selected_client_index {
-                    app.selected_client_index = Some(idx.saturating_sub(1));
-                }
-            }
-            _ => {}
-        },
-        KeyCode::Enter => match app.current_tab {
-            1 if app.selected_device_index.is_some() => {
-                app.mode = Mode::DeviceDetail;
-            }
-            2 if app.selected_client_index.is_some() => {
-                app.mode = Mode::ClientDetail;
-            }
-            _ => {}
-        },
-        _ => {}
-    }
-    Ok(())
-}
-
-async fn handle_client_input(app: &mut App, key: KeyEvent) -> io::Result<()> {
-    if key.code == KeyCode::Esc {
-        app.mode = Mode::Overview;
-    }
-    else if key.code == KeyCode::Char('q') {
-        app.should_quit = true;
-    }
-    Ok(())
-}
-
-fn draw_search_bar(f: &mut Frame, area: Rect, app: &App) {
-    let area = centered_rect(60, 10, area);
-    let search_widget = Paragraph::new(app.search_query.to_string())
-        .block(Block::default().borders(Borders::ALL).title("Search"))
-        .style(Style::default().fg(Color::Yellow));
-    f.render_widget(Clear, area);
-    f.render_widget(search_widget, area);
-}
-
-fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
-    let status = format!(
-        " Sites: {} | Devices: {} | Clients: {} | Last Update: {}s ago {}",
-        app.sites.len(),
-        app.devices.len(),
-        app.clients.len(),
-        app.last_update.elapsed().as_secs(),
-        if app.search_mode { "| SEARCH MODE" } else { "" }
-    );
-
-    let status_widget = Paragraph::new(Line::from(status))
-        .style(Style::default().bg(Color::DarkGray).fg(Color::White));
-
-    f.render_widget(status_widget, area);
-}
-
-fn draw_help(f: &mut Frame, area: Rect) {
-    let help_text = vec![
-        Line::from("UniFi Network TUI Help"),
-        Line::from(""),
-        Line::from("Global Commands:"),
-        Line::from("  q      - Quit"),
-        Line::from("  ?      - Toggle help"),
-        Line::from("  /      - Search"),
-        Line::from("  Tab    - Switch views"),
-        Line::from("  r      - Refresh data"),
-        Line::from(""),
-        Line::from("Device/Client List:"),
-        Line::from("  ↑/↓    - Navigate"),
-        Line::from("  Enter  - View details"),
-        Line::from("  s      - Toggle sort"),
-        Line::from(""),
-        Line::from("Device Details:"),
-        Line::from("  r      - Restart device"),
-        Line::from("  Esc    - Back to list"),
-        Line::from(""),
-        Line::from("Search Mode:"),
-        Line::from("  Type   - Filter items"),
-        Line::from("  Esc    - Exit search"),
-    ];
-
-    let help_widget = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Help"))
-        .alignment(Alignment::Left);
-
-    f.render_widget(help_widget, area);
-}
-
-fn draw_error(f: &mut Frame, area: Rect, error: &str) {
-    let area = centered_rect(60, 3, area);
-    let error_widget = Paragraph::new(error)
-        .block(Block::default().borders(Borders::ALL).title("Error"))
-        .style(Style::default().fg(Color::Red))
-        .alignment(Alignment::Center);
-
-    f.render_widget(Clear, area);
-    f.render_widget(error_widget, area);
-}
-
-fn draw_overview(f: &mut Frame, area: Rect, app: &App, menu_titles: &[&str]) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(1)
-        .constraints(
-            [
-                Constraint::Length(3),
-                Constraint::Min(0),
-                Constraint::Length(3),
-            ]
-            .as_ref(),
-        )
-        .split(area);
-
-    let menu = menu_titles
-        .iter()
-        .map(|t| Line::from(*t))
-        .collect::<Vec<Line>>();
-
-    let tabs = Tabs::new(menu)
-        .block(Block::default().borders(Borders::ALL).title("Tabs"))
-        .select(app.current_tab)
-        .style(Style::default())
-        .highlight_style(
-            Style::default()
-                .add_modifier(Modifier::BOLD)
-                .bg(Color::Gray),
-        );
-    f.render_widget(tabs, chunks[0]);
-
-    match app.current_tab {
-        0 => sites::render_sites(f, chunks[1], app),
-        1 => devices::render_devices(f, chunks[1], app),
-        2 => clients::render_clients(f, chunks[1], app),
-        3 => stats::render_stats(f, chunks[1], app),
-        _ => {}
-    }
-
-    let help_text = match app.current_tab {
-        0 => vec![Line::from(
-            "q: quit | ?: help | tab: switch views | r: refresh",
-        )],
-        1 => vec![Line::from(
-            "q: quit | ?: help | ↑↓: select | enter: details | s: sort | /: search",
-        )],
-        2 => vec![Line::from(
-            "q: quit | ?: help | ↑↓: select | enter: details | s: sort | /: search",
-        )],
-        3 => vec![Line::from(
-            "q: quit | ?: help | r: refresh | tab: switch views",
-        )],
-        _ => vec![],
-    };
-
-    let help =
-        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
-    f.render_widget(help, chunks[2]);
-}
-
-fn draw_dialog(f: &mut Frame, area: Rect, dialog: &Dialog) {
-    let area = centered_rect(60, 20, area);
-    f.render_widget(Clear, area);
-
-    let text = vec![
-        Line::from(""),
-        Line::from(dialog.message.clone()),
-        Line::from(""),
-        Line::from(match dialog.dialog_type {
-            DialogType::Confirmation => "(y) Yes  (n) No",
-            DialogType::Message | DialogType::Error => "Press any key to close",
-        }),
-    ];
-
-    let dialog_style = match dialog.dialog_type {
-        DialogType::Error => Style::default().fg(Color::Red),
-        _ => Style::default(),
-    };
-
-    let dialog_box = Paragraph::new(text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(dialog.title.as_str()),
-        )
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true })
-        .style(dialog_style);
-    f.render_widget(dialog_box, area);
-}
-
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
 }
