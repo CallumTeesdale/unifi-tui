@@ -40,13 +40,16 @@ enum Mode {
     Overview,
     DeviceDetail,
     ClientDetail,
+    #[allow(dead_code)]
     Help,
 }
 
 #[derive(PartialEq, Clone)]
 enum DialogType {
     Confirmation,
+    #[allow(dead_code)]
     Message,
+    #[allow(dead_code)]
     Error,
 }
 
@@ -57,11 +60,12 @@ enum SortOrder {
     None,
 }
 
+type Callback = Box<dyn FnOnce(&mut App) -> Result<()> + Send>;
 struct Dialog {
     title: String,
     message: String,
     dialog_type: DialogType,
-    callback: Option<Box<dyn FnOnce(&mut App) -> Result<()> + Send>>,
+    callback: Option<Callback>,
 }
 
 #[derive(Clone)]
