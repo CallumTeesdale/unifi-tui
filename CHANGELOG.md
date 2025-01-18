@@ -1,6 +1,19 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.1.21] - 2025-01-18
+
+### Features
+
+- Better tui and images
+
+### Miscellaneous Tasks
+
+- Clippy
+- Fmt
+- Clippy fix
+- Clippy fix
+
 ## [0.1.20] - 2025-01-18
 
 ### Ci
