@@ -1,0 +1,81 @@
+# .github/workflows/release.yml
+name: Release and Publish
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@v2
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: --current --tag ${{ github.ref_name }}
+        env:
+          OUTPUT: CHANGELOG.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Run tests
+        run: cargo test --lib
+
+      - name: Commit CHANGELOG and Cargo.lock
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add CHANGELOG.md Cargo.lock
+          git commit -m "chore: update changelog and cargo.lock for ${{ steps.version.outputs.version }}" || echo "No changes to commit"
+
+      - name: Debug Info
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Repository contents:"
+          ls -la
+          echo "Cargo.toml contents:"
+          cat Cargo.toml
+          echo "Git status:"
+          git status
+
+      - name: Publish to crates.io
+        env:
+          CRATES_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          echo "Publishing version: ${{ steps.version.outputs.version }}"
+          cargo publish --token ${CRATES_TOKEN} --allow-dirty --verbose
+
+      - name: Publish Status
+        run: |
+          echo "Release and publish completed!"
+          echo "GitHub Release: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+          echo "Crates.io: https://crates.io/crates/unifi-tui"
