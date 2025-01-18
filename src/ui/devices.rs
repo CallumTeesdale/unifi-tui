@@ -9,13 +9,12 @@ use ratatui::Frame;
 pub fn render_devices(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ].as_ref())
+        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
         .split(area);
 
-    let devices: Vec<Row> = app.state.filtered_devices
+    let devices: Vec<Row> = app
+        .state
+        .filtered_devices
         .iter()
         .map(|device| {
             let state_style = match device.state {
@@ -55,7 +54,11 @@ pub fn render_devices(f: &mut Frame, app: &App, area: Rect) {
     ];
 
     let title = match &app.state.selected_site {
-        Some(site) => format!("Devices - {} [{}]", site.site_name, app.state.filtered_devices.len()),
+        Some(site) => format!(
+            "Devices - {} [{}]",
+            site.site_name,
+            app.state.filtered_devices.len()
+        ),
         None => format!("All Devices [{}]", app.state.filtered_devices.len()),
     };
 
@@ -67,9 +70,11 @@ pub fn render_devices(f: &mut Frame, app: &App, area: Rect) {
 
     f.render_stateful_widget(table, chunks[0], &mut app.devices_table_state.clone());
 
-    let help_text = vec![Line::from("↑/↓: Select | Enter: Details | r: Restart | s: Sort | /: Search")];
-    let help = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Quick Help"));
+    let help_text = vec![Line::from(
+        "↑/↓: Select | Enter: Details | r: Restart | s: Sort | /: Search",
+    )];
+    let help =
+        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
     f.render_widget(help, chunks[1]);
 }
 
@@ -118,12 +123,17 @@ pub async fn handle_device_input(app: &mut App, key: KeyEvent) -> anyhow::Result
 
                         app.dialog = Some(Dialog {
                             title: "Confirm Restart".to_string(),
-                            message: format!("Are you sure you want to restart {}? (y/n)", device.name),
+                            message: format!(
+                                "Are you sure you want to restart {}? (y/n)",
+                                device.name
+                            ),
                             dialog_type: DialogType::Confirmation,
                             callback: Some(Box::new(move |_app| {
-                                tokio::runtime::Handle::current().block_on(async {
-                                    client.restart_device(site_id, device_id).await
-                                }).map_err(anyhow::Error::from)
+                                tokio::runtime::Handle::current()
+                                    .block_on(async {
+                                        client.restart_device(site_id, device_id).await
+                                    })
+                                    .map_err(anyhow::Error::from)
                             })),
                         });
                     }

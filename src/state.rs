@@ -85,10 +85,10 @@ impl AppState {
         if self.last_update.elapsed() < self.refresh_interval {
             return Ok(());
         }
-        
+
         let sites = self.client.list_sites(None, None).await?;
         self.sites = sites.data;
-        
+
         match &self.selected_site {
             Some(site) => {
                 self.fetch_site_data(site.site_id).await?;
@@ -98,7 +98,7 @@ impl AppState {
                 self.clients.clear();
                 self.device_details.clear();
                 self.device_stats.clear();
-                
+
                 let site_ids: Vec<Uuid> = self.sites.iter().map(|s| s.id).collect();
                 for site_id in site_ids {
                     if let Err(e) = self.fetch_site_data(site_id).await {
@@ -117,7 +117,7 @@ impl AppState {
     async fn fetch_site_data(&mut self, site_id: Uuid) -> Result<()> {
         let devices = self.client.list_devices(site_id, None, None).await?;
         let clients = self.client.list_clients(site_id, None, None).await?;
-        
+
         for device in &devices.data {
             if let Ok(details) = self.client.get_device_details(site_id, device.id).await {
                 self.device_details.insert(device.id, details);
@@ -126,7 +126,7 @@ impl AppState {
                 self.device_stats.insert(device.id, stats);
             }
         }
-        
+
         if self.selected_site.as_ref().map(|s| s.site_id) == Some(site_id) {
             self.devices = devices.data;
             self.clients = clients.data;
@@ -143,10 +143,14 @@ impl AppState {
             timestamp: Utc::now(),
             site_id: self.selected_site.as_ref().map(|s| s.site_id),
             client_count: self.clients.len(),
-            wireless_clients: self.clients.iter()
+            wireless_clients: self
+                .clients
+                .iter()
                 .filter(|c| matches!(c, ClientOverview::Wireless(_)))
                 .count(),
-            wired_clients: self.clients.iter()
+            wired_clients: self
+                .clients
+                .iter()
                 .filter(|c| matches!(c, ClientOverview::Wired(_)))
                 .count(),
             device_stats: self.collect_device_metrics(),
@@ -159,7 +163,8 @@ impl AppState {
     }
 
     fn collect_device_metrics(&self) -> Vec<DeviceMetrics> {
-        self.devices.iter()
+        self.devices
+            .iter()
             .filter_map(|device| {
                 let stats = self.device_stats.get(&device.id)?;
                 Some(DeviceMetrics {
@@ -182,14 +187,15 @@ impl AppState {
 
     pub fn set_site_context(&mut self, site_id: Option<Uuid>) {
         self.selected_site = site_id.and_then(|id| {
-            self.sites.iter().find(|s| s.id == id).map(|site| {
-                SiteContext {
+            self.sites
+                .iter()
+                .find(|s| s.id == id)
+                .map(|site| SiteContext {
                     site_id: id,
                     site_name: site.name.clone().unwrap_or_else(|| "Unnamed".to_string()),
-                }
-            })
+                })
         });
-        
+
         self.devices.clear();
         self.clients.clear();
         self.device_details.clear();
@@ -199,13 +205,15 @@ impl AppState {
 
     pub fn search(&mut self, query: &str) {
         let query = query.to_lowercase();
-        
+
         if query.is_empty() {
             self.filtered_devices = self.devices.clone();
             self.filtered_clients = self.clients.clone();
             return;
         }
-        self.filtered_devices = self.devices.iter()
+        self.filtered_devices = self
+            .devices
+            .iter()
             .filter(|d| {
                 d.name.to_lowercase().contains(&query)
                     || d.model.to_lowercase().contains(&query)
@@ -215,26 +223,42 @@ impl AppState {
             })
             .cloned()
             .collect();
-        
-        self.filtered_clients = self.clients.iter()
+
+        self.filtered_clients = self
+            .clients
+            .iter()
             .filter(|c| match c {
                 ClientOverview::Wired(wc) => {
-                    wc.base.name.as_deref().unwrap_or("")
+                    wc.base
+                        .name
+                        .as_deref()
+                        .unwrap_or("")
                         .to_lowercase()
                         .contains(&query)
-                        || wc.base.ip_address.as_deref().unwrap_or("")
-                        .to_lowercase()
-                        .contains(&query)
+                        || wc
+                            .base
+                            .ip_address
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&query)
                         || wc.mac_address.to_lowercase().contains(&query)
                         || wc.uplink_device_id.to_string().contains(&query)
                 }
                 ClientOverview::Wireless(wc) => {
-                    wc.base.name.as_deref().unwrap_or("")
+                    wc.base
+                        .name
+                        .as_deref()
+                        .unwrap_or("")
                         .to_lowercase()
                         .contains(&query)
-                        || wc.base.ip_address.as_deref().unwrap_or("")
-                        .to_lowercase()
-                        .contains(&query)
+                        || wc
+                            .base
+                            .ip_address
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&query)
                         || wc.mac_address.to_lowercase().contains(&query)
                         || wc.uplink_device_id.to_string().contains(&query)
                 }
@@ -243,5 +267,4 @@ impl AppState {
             .cloned()
             .collect();
     }
-    
 }

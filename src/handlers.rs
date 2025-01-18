@@ -1,6 +1,6 @@
-use crossterm::event::{KeyCode, KeyEvent};
 use crate::app::{App, DialogType};
 use crate::error::Result;
+use crossterm::event::{KeyCode, KeyEvent};
 
 pub async fn handle_global_input(app: &mut App, key: KeyEvent) -> Result<bool> {
     match key.code {
@@ -32,7 +32,7 @@ pub async fn handle_global_input(app: &mut App, key: KeyEvent) -> Result<bool> {
             app.state.last_update -= app.state.refresh_interval;
             Ok(true)
         }
-        _ => Ok(false)
+        _ => Ok(false),
     }
 }
 

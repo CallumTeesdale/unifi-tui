@@ -1,11 +1,13 @@
-use ratatui::{Frame, symbols};
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style, Modifier};
-use ratatui::widgets::{Block, Borders, Paragraph, Row, Table, Cell, Chart, Dataset, GraphType, Axis};
-use ratatui::text::{Line, Span};
-use uuid::Uuid;
-use unifi_rs::ClientOverview;
 use crate::state::AppState;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{
+    Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table,
+};
+use ratatui::{symbols, Frame};
+use unifi_rs::ClientOverview;
+use uuid::Uuid;
 
 pub struct ClientStatsView<'a> {
     client_id: Uuid,
@@ -23,10 +25,7 @@ impl<'a> ClientStatsView<'a> {
     pub fn render(&self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), 
-                Constraint::Min(0), 
-            ].as_ref())
+            .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
             .split(area);
 
         if let Some(client) = self.app_state.clients.iter().find(|c| match c {
@@ -46,15 +45,17 @@ impl<'a> ClientStatsView<'a> {
         }
     }
 
-    fn render_wireless_stats(&self, f: &mut Frame, area: Rect, client: &unifi_rs::WirelessClientOverview) {
+    fn render_wireless_stats(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        client: &unifi_rs::WirelessClientOverview,
+    ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(7),
-                Constraint::Min(0),
-            ].as_ref())
+            .constraints([Constraint::Length(7), Constraint::Min(0)].as_ref())
             .split(area);
-        
+
         let info_text = vec![
             Line::from(vec![
                 Span::raw("Name: "),
@@ -80,64 +81,55 @@ impl<'a> ClientStatsView<'a> {
             Line::from(vec![
                 Span::raw("Connected Since: "),
                 Span::styled(
-                    client.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    client
+                        .base
+                        .connected_at
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                     Style::default(),
                 ),
             ]),
             Line::from(vec![
                 Span::raw("Uplink Device: "),
-                Span::styled(
-                    client.uplink_device_id.to_string(),
-                    Style::default(),
-                ),
+                Span::styled(client.uplink_device_id.to_string(), Style::default()),
             ]),
         ];
 
-        let info = Paragraph::new(info_text)
-            .block(Block::default().borders(Borders::ALL).title("Connection Info"));
+        let info = Paragraph::new(info_text).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Connection Info"),
+        );
         f.render_widget(info, chunks[0]);
-        
-        
+
         let metrics_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ].as_ref())
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
             .split(chunks[1]);
-        
+
         let signal_info = vec![
             Row::new(vec![
                 Cell::from("Signal Strength"),
                 Cell::from("-65 dBm").style(Style::default().fg(Color::Green)),
             ]),
-            Row::new(vec![
-                Cell::from("Noise Floor"),
-                Cell::from("-95 dBm"),
-            ]),
+            Row::new(vec![Cell::from("Noise Floor"), Cell::from("-95 dBm")]),
             Row::new(vec![
                 Cell::from("SNR"),
                 Cell::from("30 dB").style(Style::default().fg(Color::Green)),
             ]),
-            Row::new(vec![
-                Cell::from("TX Rate"),
-                Cell::from("867 Mbps"),
-            ]),
-            Row::new(vec![
-                Cell::from("RX Rate"),
-                Cell::from("867 Mbps"),
-            ]),
+            Row::new(vec![Cell::from("TX Rate"), Cell::from("867 Mbps")]),
+            Row::new(vec![Cell::from("RX Rate"), Cell::from("867 Mbps")]),
         ];
 
-        let width = [
-            Constraint::Percentage(40),
-            Constraint::Percentage(60),
-        ];
-        let signal_table = Table::new(signal_info,width)
-            .block(Block::default().borders(Borders::ALL).title("WiFi Performance"));
+        let width = [Constraint::Percentage(40), Constraint::Percentage(60)];
+        let signal_table = Table::new(signal_info, width).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("WiFi Performance"),
+        );
 
         f.render_widget(signal_table, metrics_layout[0]);
-        
+
         let dataset = vec![
             Dataset::default()
                 .name("TX")
@@ -154,32 +146,38 @@ impl<'a> ClientStatsView<'a> {
         ];
 
         let chart = Chart::new(dataset)
-            .block(Block::default().title("Network Throughput").borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title("Network Throughput")
+                    .borders(Borders::ALL),
+            )
             .x_axis(
                 Axis::default()
                     .title("Time")
                     .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 2.0])
+                    .bounds([0.0, 2.0]),
             )
             .y_axis(
                 Axis::default()
                     .title("Mbps")
                     .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 100.0])
+                    .bounds([0.0, 100.0]),
             );
 
         f.render_widget(chart, metrics_layout[1]);
     }
 
-    fn render_wired_stats(&self, f: &mut Frame, area: Rect, client: &unifi_rs::WiredClientOverview) {
+    fn render_wired_stats(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        client: &unifi_rs::WiredClientOverview,
+    ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(7),
-                Constraint::Min(0), 
-            ].as_ref())
+            .constraints([Constraint::Length(7), Constraint::Min(0)].as_ref())
             .split(area);
-        
+
         let info_text = vec![
             Line::from(vec![
                 Span::raw("Name: "),
@@ -205,60 +203,49 @@ impl<'a> ClientStatsView<'a> {
             Line::from(vec![
                 Span::raw("Connected Since: "),
                 Span::styled(
-                    client.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    client
+                        .base
+                        .connected_at
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                     Style::default(),
                 ),
             ]),
             Line::from(vec![
                 Span::raw("Uplink Device: "),
-                Span::styled(
-                    client.uplink_device_id.to_string(),
-                    Style::default(),
-                ),
+                Span::styled(client.uplink_device_id.to_string(), Style::default()),
             ]),
         ];
 
-        let info = Paragraph::new(info_text)
-            .block(Block::default().borders(Borders::ALL).title("Connection Info"));
+        let info = Paragraph::new(info_text).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Connection Info"),
+        );
         f.render_widget(info, chunks[0]);
-        
+
         let metrics_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ].as_ref())
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
             .split(chunks[1]);
-        
+
         let port_info = vec![
-            Row::new(vec![
-                Cell::from("Link Speed"),
-                Cell::from("1 Gbps"),
-            ]),
-            Row::new(vec![
-                Cell::from("Duplex"),
-                Cell::from("Full"),
-            ]),
-            Row::new(vec![
-                Cell::from("Power"),
-                Cell::from("802.3at PoE+"),
-            ]),
-            Row::new(vec![
-                Cell::from("Port"),
-                Cell::from("eth0"),
-            ]),
+            Row::new(vec![Cell::from("Link Speed"), Cell::from("1 Gbps")]),
+            Row::new(vec![Cell::from("Duplex"), Cell::from("Full")]),
+            Row::new(vec![Cell::from("Power"), Cell::from("802.3at PoE+")]),
+            Row::new(vec![Cell::from("Port"), Cell::from("eth0")]),
         ];
 
-        let width = [
-            Constraint::Percentage(30),
-            Constraint::Percentage(70),
-        ];
-        
-        let port_table = Table::new(port_info, width)
-            .block(Block::default().borders(Borders::ALL).title("Port Information"));
+        let width = [Constraint::Percentage(30), Constraint::Percentage(70)];
+
+        let port_table = Table::new(port_info, width).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Port Information"),
+        );
 
         f.render_widget(port_table, metrics_layout[0]);
-        
+
         let dataset = vec![
             Dataset::default()
                 .name("TX")
@@ -275,18 +262,22 @@ impl<'a> ClientStatsView<'a> {
         ];
 
         let chart = Chart::new(dataset)
-            .block(Block::default().title("Network Throughput").borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title("Network Throughput")
+                    .borders(Borders::ALL),
+            )
             .x_axis(
                 Axis::default()
                     .title("Time")
                     .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 2.0])
+                    .bounds([0.0, 2.0]),
             )
             .y_axis(
                 Axis::default()
                     .title("Mbps")
                     .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 200.0])
+                    .bounds([0.0, 200.0]),
             );
 
         f.render_widget(chart, metrics_layout[1]);

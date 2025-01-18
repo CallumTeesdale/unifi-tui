@@ -1,12 +1,15 @@
-use ratatui::Frame;
+use crate::app::App;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
-use ratatui::widgets::Paragraph;
 use ratatui::text::Line;
-use crate::app::App;
+use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 pub fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
-    let site_context = app.state.selected_site.as_ref()
+    let site_context = app
+        .state
+        .selected_site
+        .as_ref()
         .map(|s| format!("Site: {} | ", s.site_name))
         .unwrap_or_else(|| "All Sites | ".to_string());
 

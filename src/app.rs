@@ -1,7 +1,7 @@
-use ratatui::widgets::TableState;
-use uuid::Uuid;
 use crate::state::AppState;
 use crate::ui::widgets::DeviceStatsView;
+use ratatui::widgets::TableState;
+use uuid::Uuid;
 
 #[derive(PartialEq, Clone)]
 pub enum Mode {
@@ -60,7 +60,7 @@ impl App {
         Ok(Self {
             state,
             current_tab: 0,
-                mode: Mode::Overview,
+            mode: Mode::Overview,
             dialog: None,
             search_mode: false,
             search_query: String::new(),
@@ -80,7 +80,10 @@ impl App {
     }
 
     pub async fn refresh(&mut self) -> anyhow::Result<()> {
-        self.state.refresh_data().await.map_err(|e| anyhow::anyhow!(e.to_string()))
+        self.state
+            .refresh_data()
+            .await
+            .map_err(|e| anyhow::anyhow!(e.to_string()))
     }
 
     pub fn handle_search(&mut self, query: &str) {

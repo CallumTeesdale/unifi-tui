@@ -1,8 +1,8 @@
 mod app;
-mod state;
-mod ui;
 mod error;
 mod handlers;
+mod state;
+mod ui;
 
 use anyhow::Result;
 use clap::Parser;
@@ -16,7 +16,10 @@ use std::{io, time::Duration};
 use unifi_rs::UnifiClientBuilder;
 
 use crate::app::{App, Mode};
-use crate::handlers::{handle_client_detail_input, handle_device_detail_input, handle_dialog_input, handle_global_input, handle_search_input};
+use crate::handlers::{
+    handle_client_detail_input, handle_device_detail_input, handle_dialog_input,
+    handle_global_input, handle_search_input,
+};
 use crate::state::AppState;
 use crate::ui::render;
 
@@ -39,23 +42,23 @@ struct Cli {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    
+
     let client = UnifiClientBuilder::new(cli.url)
         .api_key(cli.api_key)
         .verify_ssl(!cli.insecure)
         .build()?;
-    
+
     let state = AppState::new(client).await?;
     let app = App::new(state).await?;
-    
+
     let res = run_app(&mut terminal, app).await;
-    
+
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -91,14 +94,12 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                     }
                 } else {
                     match app.mode {
-                        Mode::Overview => {
-                            match app.current_tab {
-                                0 => ui::sites::handle_sites_input(&mut app, key)?,
-                                1 => ui::devices::handle_device_input(&mut app, key).await?,
-                                2 => ui::clients::handle_client_input(&mut app, key).await?,
-                                _ => {}
-                            }
-                        }
+                        Mode::Overview => match app.current_tab {
+                            0 => ui::sites::handle_sites_input(&mut app, key)?,
+                            1 => ui::devices::handle_device_input(&mut app, key).await?,
+                            2 => ui::clients::handle_client_input(&mut app, key).await?,
+                            _ => {}
+                        },
                         Mode::DeviceDetail => {
                             handle_device_detail_input(&mut app, key).await?;
                         }
@@ -114,7 +115,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                 }
             }
         }
-        
+
         if app.dialog.is_none() {
             if let Err(e) = app.refresh().await {
                 app.state.set_error(format!("Error refreshing data: {}", e));

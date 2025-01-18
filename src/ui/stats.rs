@@ -1,18 +1,21 @@
-use ratatui::{Frame, symbols};
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
-use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Paragraph};
-use ratatui::text::Line;
 use crate::app::App;
 use crate::state::{DeviceMetrics, NetworkStats};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Style};
+use ratatui::text::Line;
+use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Paragraph};
+use ratatui::{symbols, Frame};
 
 pub fn render_stats(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(7),  // Summary
-            Constraint::Min(0),     // Charts
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Length(7), // Summary
+                Constraint::Min(0),    // Charts
+            ]
+            .as_ref(),
+        )
         .split(area);
 
     render_summary(f, app, chunks[0]);
@@ -20,7 +23,9 @@ pub fn render_stats(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_summary(f: &mut Frame, app: &App, area: Rect) {
-    let online_devices = app.state.devices
+    let online_devices = app
+        .state
+        .devices
         .iter()
         .filter(|d| matches!(d.state, unifi_rs::DeviceState::Online))
         .count();
@@ -34,14 +39,16 @@ fn render_summary(f: &mut Frame, app: &App, area: Rect) {
         Line::from(format!("Total Clients: {}", app.state.clients.len())),
         Line::from(format!(
             "Wireless Clients: {}",
-            app.state.clients
+            app.state
+                .clients
                 .iter()
                 .filter(|c| matches!(c, unifi_rs::ClientOverview::Wireless(_)))
                 .count()
         )),
         Line::from(format!(
             "Wired Clients: {}",
-            app.state.clients
+            app.state
+                .clients
                 .iter()
                 .filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_)))
                 .count()
@@ -53,18 +60,15 @@ fn render_summary(f: &mut Frame, app: &App, area: Rect) {
         None => "Network Summary - All Sites".to_string(),
     };
 
-    let summary = Paragraph::new(summary_text)
-        .block(Block::default().borders(Borders::ALL).title(title));
+    let summary =
+        Paragraph::new(summary_text).block(Block::default().borders(Borders::ALL).title(title));
     f.render_widget(summary, area);
 }
 
 fn render_charts(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ].as_ref())
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(area);
 
     render_client_history(f, app, chunks[0]);
@@ -120,40 +124,40 @@ fn render_client_history(f: &mut Frame, app: &App, area: Rect) {
             .style(Style::default().fg(Color::Blue))
             .data(&wired_data),
     ];
-    
-    let max_y_label = format!("{}", max_y as i32);
-    let y_axis_labels = vec![
-        Line::from("0"),
-        Line::from(max_y_label.as_str()),
-    ];
 
-    let x_axis_labels = vec![
-        Line::from("5m ago"),
-        Line::from("Now"),
-    ];
+    let max_y_label = format!("{}", max_y as i32);
+    let y_axis_labels = vec![Line::from("0"), Line::from(max_y_label.as_str())];
+
+    let x_axis_labels = vec![Line::from("5m ago"), Line::from("Now")];
 
     let chart = Chart::new(datasets)
-        .block(Block::default().title("Client History").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title("Client History")
+                .borders(Borders::ALL),
+        )
         .x_axis(
             Axis::default()
                 .title("Time")
                 .style(Style::default().fg(Color::Gray))
                 .bounds([0.0, (client_history.len() - 1) as f64])
-                .labels(x_axis_labels)
+                .labels(x_axis_labels),
         )
         .y_axis(
             Axis::default()
                 .title("Clients")
                 .style(Style::default().fg(Color::Gray))
                 .bounds([0.0, max_y * 1.1])
-                .labels(y_axis_labels)
+                .labels(y_axis_labels),
         );
 
     f.render_widget(chart, area);
 }
 
 fn render_device_metrics(f: &mut Frame, app: &App, area: Rect) {
-    let device_metrics:  Vec<&DeviceMetrics> = app.state.stats_history
+    let device_metrics: Vec<&DeviceMetrics> = app
+        .state
+        .stats_history
         .back()
         .map(|stats| stats.device_stats.as_slice())
         .unwrap_or(&[])
@@ -192,18 +196,22 @@ fn render_device_metrics(f: &mut Frame, app: &App, area: Rect) {
     ];
 
     let chart = Chart::new(datasets)
-        .block(Block::default().title("Device Metrics").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title("Device Metrics")
+                .borders(Borders::ALL),
+        )
         .x_axis(
             Axis::default()
                 .title("Device")
                 .style(Style::default().fg(Color::Gray))
-                .bounds([0.0, (device_metrics.len() - 1) as f64])
+                .bounds([0.0, (device_metrics.len() - 1) as f64]),
         )
         .y_axis(
             Axis::default()
                 .title("Utilization %")
                 .style(Style::default().fg(Color::Gray))
-                .bounds([0.0, 100.0])
+                .bounds([0.0, 100.0]),
         );
 
     f.render_widget(chart, area);

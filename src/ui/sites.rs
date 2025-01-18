@@ -9,17 +9,19 @@ use ratatui::Frame;
 pub fn render_sites(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ].as_ref())
+        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
         .split(area);
 
-    let sites: Vec<Row> = app.state.sites
+    let sites: Vec<Row> = app
+        .state
+        .sites
         .iter()
         .map(|site| {
-            let is_selected = app.state.selected_site
-                .as_ref().is_some_and(|s| s.site_id == site.id);
+            let is_selected = app
+                .state
+                .selected_site
+                .as_ref()
+                .is_some_and(|s| s.site_id == site.id);
 
             let style = if is_selected {
                 Style::default().bg(Color::Gray)
@@ -39,23 +41,22 @@ pub fn render_sites(f: &mut Frame, app: &App, area: Rect) {
         Cell::from("ID").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
     ]);
-    
-    let widths = [
-        Constraint::Percentage(30),
-        Constraint::Percentage(70),
-    ];
+
+    let widths = [Constraint::Percentage(30), Constraint::Percentage(70)];
 
     let table = Table::new(sites, widths)
         .header(header)
         .block(Block::default().borders(Borders::ALL).title("Sites"))
         .row_highlight_style(Style::default().bg(Color::Gray));
-    
+
     f.render_stateful_widget(table, chunks[0], &mut app.sites_table_state.clone());
 
     // Help text
-    let help_text = vec![Line::from("↑/↓: Select site | Enter: View site | Esc: Show all sites")];
-    let help = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Quick Help"));
+    let help_text = vec![Line::from(
+        "↑/↓: Select site | Enter: View site | Esc: Show all sites",
+    )];
+    let help =
+        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
     f.render_widget(help, chunks[1]);
 }
 
