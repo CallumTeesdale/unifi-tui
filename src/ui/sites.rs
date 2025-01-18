@@ -50,8 +50,7 @@ pub fn render_sites(f: &mut Frame, app: &App, area: Rect) {
         .row_highlight_style(Style::default().bg(Color::Gray));
 
     f.render_stateful_widget(table, chunks[0], &mut app.sites_table_state.clone());
-
-    // Help text
+    
     let help_text = vec![Line::from(
         "↑/↓: Select site | Enter: View site | Esc: Show all sites",
     )];
