@@ -4,6 +4,8 @@ pub mod sites;
 pub mod stats;
 pub mod status_bar;
 pub mod widgets;
+pub(crate) mod topology;
+
 use crate::app::{App, DialogType, Mode};
 use crate::ui::{
     clients::render_clients, devices::render_devices, sites::render_sites, stats::render_stats,
@@ -15,6 +17,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
 use ratatui::Frame;
+use crate::ui::topology::render_topology;
 
 pub fn render(app: &mut App, f: &mut Frame) {
     let size = f.area();
@@ -66,7 +69,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
 }
 
 fn render_tabs(f: &mut Frame, app: &App, area: Rect) {
-    let titles = ["Sites", "Devices", "Clients", "Stats"];
+    let titles = ["Sites", "Devices", "Clients", "Topology", "Stats"];
     let tabs = Tabs::new(titles.iter().map(|t| Line::from(*t)).collect::<Vec<_>>())
         .block(Block::default().borders(Borders::ALL).title("Tabs"))
         .select(app.current_tab)
@@ -83,7 +86,8 @@ fn render_overview(f: &mut Frame, app: &mut App, area: Rect) {
         0 => render_sites(f, app, area),
         1 => render_devices(f, app, area),
         2 => render_clients(f, app, area),
-        3 => render_stats(f, app, area),
+        3 => render_topology(f, app, area),
+        4 => render_stats(f, app, area),
         _ => unreachable!(),
     }
 }

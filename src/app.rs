@@ -160,11 +160,11 @@ impl App {
     }
 
     pub fn next_tab(&mut self) {
-        self.current_tab = (self.current_tab + 1) % 4;
+        self.current_tab = (self.current_tab + 1) % 5;
     }
 
     pub fn previous_tab(&mut self) {
-        self.current_tab = (self.current_tab + 3) % 4;
+        self.current_tab = (self.current_tab + 3) % 5;
     }
 
     pub fn toggle_help(&mut self) {
