@@ -32,9 +32,10 @@ pub fn render(app: &mut App, f: &mut Frame) {
         .split(size);
 
     render_tabs(f, app, chunks[0]);
+    
 
     if app.dialog.is_some() {
-        render_dialog(f, app, chunks[1]);
+        render_dialog(f, app, size);
     } else if app.show_help {
         render_help(f, app, chunks[1]);
     } else if app.search_mode {
@@ -101,10 +102,11 @@ fn render_client_detail(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-pub fn render_dialog(f: &mut Frame, app: &App, area: Rect) {
+pub fn render_dialog(f: &mut Frame, app: &mut App, area: Rect) {
     if let Some(dialog) = &app.dialog {
-        let dialog_area = centered_rect(60, 8, area);  
-        
+        app.state.set_error(format!("Rendering dialog: {}", dialog.title));
+
+        let dialog_area = centered_rect(60, 15, area);
         f.render_widget(Clear, dialog_area);
 
         let text = vec![
@@ -128,6 +130,7 @@ pub fn render_dialog(f: &mut Frame, app: &App, area: Rect) {
 }
 
 
+
 fn render_search(f: &mut Frame, app: &App, area: Rect) {
     let search_area = centered_rect(60, 3, area);
 
@@ -148,7 +151,7 @@ fn render_search(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_error(f: &mut Frame, error: &str, area: Rect) {
-    let area = centered_rect(60, 3, area);
+    let area = centered_rect(60, 15, area);
     let error_widget = Paragraph::new(error)
         .block(
             Block::default()
@@ -175,7 +178,7 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                     Line::from("  /      - Enter search mode"),
                     Line::from("  Tab    - Next view"),
                     Line::from("  S-Tab  - Previous view"),
-                    Line::from("  r      - Force refresh data"),
+                    Line::from("  F5     - Force refresh data"),
                     Line::from(""),
                     Line::from("Site Navigation:"),
                     Line::from("  ↑/↓    - Select site"),
@@ -192,13 +195,12 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                     Line::from("  /      - Search devices by name, model, MAC, or IP"),
                     Line::from("  Tab    - Next view"),
                     Line::from("  S-Tab  - Previous view"),
-                    Line::from("  r      - Force refresh data"),
+                    Line::from("  F5     - Force refresh data"),
                     Line::from(""),
                     Line::from("Device Navigation:"),
                     Line::from("  ↑/↓    - Select device"),
                     Line::from("  Enter  - View device details"),
                     Line::from("  s      - Sort devices (cycles through sorting options)"),
-                    Line::from("  r      - Restart selected device (with confirmation)"),
                 ],
                 2 => vec![
                     // Clients tab
@@ -210,7 +212,7 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                     Line::from("  /      - Search clients by name, MAC, or IP"),
                     Line::from("  Tab    - Next view"),
                     Line::from("  S-Tab  - Previous view"),
-                    Line::from("  r      - Force refresh data"),
+                    Line::from("  F5     - Force refresh data"),
                     Line::from(""),
                     Line::from("Client Navigation:"),
                     Line::from("  ↑/↓    - Select client"),
@@ -226,7 +228,7 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                     Line::from("  ?      - Toggle this help screen"),
                     Line::from("  Tab    - Next view"),
                     Line::from("  S-Tab  - Previous view"),
-                    Line::from("  r      - Force refresh data"),
+                    Line::from("  F5     - Force refresh data"),
                     Line::from(""),
                     Line::from("Statistics Information:"),
                     Line::from("  - Shows network overview and device metrics"),
@@ -235,48 +237,14 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                 ],
                 _ => vec![],
             }
-        }
-        Mode::DeviceDetail => vec![
-            Line::from("UniFi Network TUI Help - Device Details"),
-            Line::from(""),
-            Line::from("Global Commands:"),
-            Line::from("  q      - Quit application"),
-            Line::from("  ?      - Toggle this help screen"),
-            Line::from("  Esc    - Return to device list"),
-            Line::from(""),
-            Line::from("Tab Navigation:"),
-            Line::from("  Tab/→  - Next tab"),
-            Line::from("  S-Tab/← - Previous tab"),
-            Line::from(""),
-            Line::from("Available Tabs:"),
-            Line::from("  Overview    - Basic device info and resource usage"),
-            Line::from("  Network     - Network throughput statistics"),
-            Line::from("  Radio Stats - Wireless radio information"),
-            Line::from("  Port Status - Physical port status and details"),
-        ],
-        Mode::ClientDetail => vec![
-            Line::from("UniFi Network TUI Help - Client Details"),
-            Line::from(""),
-            Line::from("Global Commands:"),
-            Line::from("  q      - Quit application"),
-            Line::from("  ?      - Toggle this help screen"),
-            Line::from("  Esc    - Return to client list"),
-            Line::from(""),
-            Line::from("Display Information:"),
-            Line::from("  - Connection info (IP, MAC, uptime)"),
-            Line::from("  - Signal strength and quality (wireless)"),
-            Line::from("  - Port status (wired)"),
-            Line::from("  - Network throughput graph"),
-            Line::from(""),
-            Line::from("Note: Statistics update every refresh cycle (5s)"),
-        ],
-        Mode::Help => vec![],
+        },
+        _ => vec![Line::from("Help not available for this view")],
     };
 
-    let help_widget = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Help"))
-        .alignment(Alignment::Left);
-    f.render_widget(help_widget, area);
+    let help = Paragraph::new(help_text)
+        .block(Block::default().borders(Borders::ALL).title("Help"));
+
+    f.render_widget(help, area);
 }
 
 fn centered_rect(percent_x: u16, height: u16, r: Rect) -> Rect {

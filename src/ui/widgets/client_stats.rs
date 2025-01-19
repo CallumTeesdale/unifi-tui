@@ -55,8 +55,8 @@ impl<'a> ClientStatsView<'a> {
         let hours = duration.num_hours();
         let minutes = duration.num_minutes() % 60;
         let seconds = duration.num_seconds() % 60;
-
-        // Style based on connection duration
+        
+        
         let style = if hours >= 24 {
             Style::default().fg(Color::Green)
         } else if hours >= 1 {
@@ -195,7 +195,6 @@ impl<'a> ClientStatsView<'a> {
         area: Rect,
         client: &unifi_rs::WirelessClientOverview,
     ) {
-        // Split area into device info and radio table
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -203,8 +202,7 @@ impl<'a> ClientStatsView<'a> {
                 Constraint::Min(0),     // Radio table
             ])
             .split(area);
-
-        // Device Info Section
+        
         if let Some(device) = self.app_state.devices.iter()
             .find(|d| d.id == client.uplink_device_id)
         {
@@ -240,8 +238,8 @@ impl<'a> ClientStatsView<'a> {
             let device_info = Paragraph::new(device_text)
                 .block(Block::default().borders(Borders::ALL).title("Access Point Information"));
             f.render_widget(device_info, chunks[0]);
-
-            // Radio Information Table
+            
+            
             if let Some(details) = self.app_state.device_details.get(&device.id) {
                 if let Some(interfaces) = &details.interfaces {
                     let header = Row::new(vec![
@@ -318,7 +316,7 @@ impl<'a> ClientStatsView<'a> {
         area: Rect,
         client: &unifi_rs::WiredClientOverview,
     ) {
-        // Split area into device info and port table
+        
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -326,8 +324,7 @@ impl<'a> ClientStatsView<'a> {
                 Constraint::Min(0),     // Port table
             ])
             .split(area);
-
-        // Device Info Section
+        
         if let Some(device) = self.app_state.devices.iter()
             .find(|d| d.id == client.uplink_device_id)
         {
@@ -413,22 +410,8 @@ impl<'a> ClientStatsView<'a> {
                         .header(header)
                         .block(Block::default().borders(Borders::ALL).title("Port Information"));
                     f.render_widget(table, chunks[1]);
-                    
-                    if let Some(stats) = self.app_state.device_stats.get(&device.id) {
-                        if let Some(uplink) = &stats.uplink {
-                            let total_throughput = (uplink.tx_rate_bps + uplink.rx_rate_bps) as f64 / 1_000_000.0;
-                        }
-                    }
                 }
             }
-        }
-    }
-
-    fn format_speed(speed_mbps: i32) -> String {
-        if speed_mbps >= 1000 {
-            format!("{:.1} Gbps", speed_mbps as f64 / 1000.0)
-        } else {
-            format!("{} Mbps", speed_mbps)
         }
     }
 }

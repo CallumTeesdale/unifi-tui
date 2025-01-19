@@ -121,7 +121,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                 app.state.set_error(format!("Error refreshing data: {}", e));
             }
         }
-
+        
         if app.should_quit {
             break;
         }

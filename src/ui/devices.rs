@@ -10,12 +10,9 @@ use unifi_rs::DeviceState;
 pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),        // Main device table
-            Constraint::Length(3),     // Help bar
-        ].as_ref())
+        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
         .split(area);
-
+    
     let header = Row::new(vec![
         "Name",
         "Model",
@@ -137,7 +134,6 @@ pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
 
     let table = Table::new(devices, widths)
         .header(header)
-        .widths(&widths)
         .block(Block::default().borders(Borders::ALL).title(title))
         .row_highlight_style(Style::default().bg(Color::Gray))
         .highlight_symbol("➤ ");
@@ -145,7 +141,7 @@ pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_stateful_widget(table, chunks[0], &mut app.devices_table_state);
     
     let help_text = vec![Line::from(
-        "↑/↓: Select | Enter: Details | r: Restart | s: Sort | /: Search | ESC: Back"
+        "↑/↓: Select | Enter: Details | s: Sort | /: Search | ESC: Back",
     )];
     let help = Paragraph::new(help_text)
         .block(Block::default().borders(Borders::ALL).title("Controls"));
@@ -184,37 +180,6 @@ pub async fn handle_device_input(app: &mut App, key: KeyEvent) -> anyhow::Result
             if let Some(idx) = app.devices_table_state.selected() {
                 if let Some(device) = app.state.filtered_devices.get(idx) {
                     app.select_device(Some(device.id));
-                }
-            }
-        }
-        KeyCode::Char('r') => {
-            if let Some(idx) = app.devices_table_state.selected() {
-                if let Some(device) = app.state.filtered_devices.get(idx) {
-                    if let Some(site) = app.state.selected_site.as_ref() {
-                        let device_id = device.id;
-                        let site_id = site.site_id;
-                        let client = app.state.client.clone();
-
-                        // Create the dialog
-                        let dialog = Dialog {
-                            title: "Confirm Restart".to_string(),
-                            message: format!(
-                                "Are you sure you want to restart {}? (y/n)",
-                                device.name
-                            ),
-                            dialog_type: DialogType::Confirmation,
-                            callback: Some(Box::new(move |_app| {
-                                tokio::runtime::Handle::current()
-                                    .block_on(async {
-                                        client.restart_device(site_id, device_id).await
-                                    })
-                                    .map_err(anyhow::Error::from)
-                            })),
-                        };
-
-                        app.state.set_error(format!("Setting dialog for device: {}", device.name));
-                        app.dialog = Some(dialog);
-                    }
                 }
             }
         }

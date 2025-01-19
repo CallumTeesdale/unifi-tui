@@ -28,7 +28,7 @@ pub async fn handle_global_input(app: &mut App, key: KeyEvent) -> Result<bool> {
             app.previous_tab();
             Ok(true)
         }
-        KeyCode::Char('r') => {
+        KeyCode::F(5) => {
             app.state.last_update -= app.state.refresh_interval;
             Ok(true)
         }

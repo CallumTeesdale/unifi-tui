@@ -29,14 +29,14 @@ unifi-tui
 
 ### Unifi Devices
 ![Devices](./doc/devices.png)
-![DeviceDetail](./doc/device-details.png)
-![DeviceDetail2](./doc/device-details-network.png)
-![DeviceDetail3](./doc/device-details-ports.png)
-![DeviceDetail4](./doc/device-details-radio.png)
+![DeviceDetail](./doc/device-overview.png)
+![DeviceDetail2](./doc/device-network.png)
+![DeviceDetail3](./doc/device-ports.png)
+![DeviceDetail4](./doc/device-radios.png)
 
 ### Clients
 ![Clients](./doc/clients.png)
-![ClientDetail](./doc/client-details.png)
+![ClientDetail](./doc/client-overview.png)
 
 ### Stats
-![Stats](./doc/general-stats.png)
+![Stats](./doc/stats.png)

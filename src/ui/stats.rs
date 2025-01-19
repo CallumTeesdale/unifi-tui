@@ -44,16 +44,15 @@ fn render_summary(f: &mut Frame, app: &App, area: Rect) {
     let wired_clients = app.state.clients.iter()
         .filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_)))
         .count();
-
-    // Calculate total network throughput
+    
     let total_tx = app.state.device_stats.values()
         .filter_map(|stats| stats.uplink.as_ref().map(|u| u.tx_rate_bps))
-        .sum::<i64>() as f64 / 1_000_000.0; // Convert to Mbps
+        .sum::<i64>() as f64 / 1_000_000.0; 
 
     let total_rx = app.state.device_stats.values()
         .filter_map(|stats| stats.uplink.as_ref().map(|u| u.rx_rate_bps))
-        .sum::<i64>() as f64 / 1_000_000.0; // Convert to Mbps
-
+        .sum::<i64>() as f64 / 1_000_000.0;
+    
     let summary_text = vec![
         Line::from(format!("Devices Online: {}/{}", online_devices, app.state.devices.len())),
         Line::from(format!("Total Clients: {}", app.state.clients.len())),
@@ -217,20 +216,18 @@ fn render_client_history(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_network_throughput(f: &mut Frame, app: &App, area: Rect) {
-    // Get history of stats
     let stats_history: Vec<&NetworkStats> = app.state.stats_history.iter().collect();
     if stats_history.is_empty() {
         return;
     }
-
-    // Calculate throughput data points
+    
     let tx_data: Vec<(f64, f64)> = stats_history
         .iter()
         .enumerate()
         .map(|(i, stats)| {
             let total_tx: f64 = stats.device_stats.iter()
                 .filter_map(|m| m.tx_rate)
-                .sum::<i64>() as f64 / 1_000_000.0; // Convert to Mbps
+                .sum::<i64>() as f64 / 1_000_000.0;
             (i as f64, total_tx)
         })
         .collect();
@@ -241,12 +238,11 @@ fn render_network_throughput(f: &mut Frame, app: &App, area: Rect) {
         .map(|(i, stats)| {
             let total_rx: f64 = stats.device_stats.iter()
                 .filter_map(|m| m.rx_rate)
-                .sum::<i64>() as f64 / 1_000_000.0; // Convert to Mbps
+                .sum::<i64>() as f64 / 1_000_000.0;
             (i as f64, total_rx)
         })
         .collect();
-
-    // Find maximum throughput for scaling
+    
     let max_throughput = tx_data.iter()
         .chain(rx_data.iter())
         .map(|(_, rate)| *rate)
@@ -266,8 +262,7 @@ fn render_network_throughput(f: &mut Frame, app: &App, area: Rect) {
             .style(Style::default().fg(Color::Blue))
             .data(&rx_data),
     ];
-
-    // Create human-readable labels
+    
     let max_label = format!("{:.1} Mbps", max_throughput);
     let y_labels = vec![
         Line::from("0"),
@@ -298,7 +293,7 @@ fn render_network_throughput(f: &mut Frame, app: &App, area: Rect) {
             Axis::default()
                 .title("Mbps")
                 .style(Style::default())
-                .bounds([0.0, max_throughput * 1.1]) // Add 10% padding
+                .bounds([0.0, max_throughput * 1.1])
                 .labels(y_labels)
         );
 
