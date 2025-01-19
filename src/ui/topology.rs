@@ -8,7 +8,6 @@ use ratatui::{
 };
 use unifi_rs::{ClientOverview, DeviceState};
 use std::collections::{HashMap, HashSet};
-use std::string;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -177,8 +176,8 @@ fn draw_device(ctx: &mut ratatui::widgets::canvas::Context, node: &NetworkNode) 
     }
     
     let label = format!("{} ({} clients)", node.name, node.clients);
-    let offset = (label.len() as f64 * 0.3);
-    ctx.print(x - offset, y + icon_size + 1.0, string::String::from(label));
+    let offset = label.len() as f64 * 0.3;
+    ctx.print(x - offset, y + icon_size + 1.0, label);
 }
 
 fn create_network_nodes(app: &App) -> Vec<NetworkNode> {
