@@ -1,8 +1,10 @@
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use chrono::{DateTime, Utc};
 use std::collections::{HashMap, VecDeque};
+use std::future::Future;
+use std::pin::Pin;
 use std::time::{Duration, Instant};
-use unifi_rs::{ClientOverview, DeviceDetails, DeviceStatistics, UnifiClient};
+use unifi_rs::{ClientOverview, DeviceDetails, DeviceStatistics, Page, UnifiClient};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -85,11 +87,11 @@ impl AppState {
             let history = self
                 .network_history
                 .entry(device_id)
-                .or_insert_with(|| VecDeque::with_capacity(60)); // Keep last 5 minutes (60 points @ 5s)
+                .or_insert_with(|| VecDeque::with_capacity(60));
 
             let throughput = NetworkThroughput {
                 timestamp: Utc::now(),
-                tx_rate: uplink.tx_rate_bps as f64 / 1_000_000.0, // Convert to Mbps
+                tx_rate: uplink.tx_rate_bps as f64 / 1_000_000.0,
                 rx_rate: uplink.rx_rate_bps as f64 / 1_000_000.0,
             };
 
@@ -105,13 +107,85 @@ impl AppState {
         self.error_timestamp = Some(Instant::now());
     }
 
+    async fn fetch_all_paged_data<T>(
+        &self,
+        fetch_page: impl Fn(i32, i32) -> Pin<Box<dyn Future<Output = Result<Page<T>>> + Send>> + Send,
+        page_size: i32,
+    ) -> Result<Vec<T>> {
+        let mut all_items = Vec::new();
+        let mut offset = 0;
+
+        loop {
+            let page = fetch_page(offset, page_size).await?;
+            all_items.extend(page.data);
+
+            if offset + page.count >= page.total_count {
+                break;
+            }
+            offset += page_size;
+        }
+
+        Ok(all_items)
+    }
+
+    async fn fetch_site_data(&mut self, site_id: Uuid) -> Result<()> {
+        let devices = self.fetch_all_paged_data(
+            |offset, limit| {
+                let client = self.client.clone();
+                Box::pin(async move {
+                    client.list_devices(site_id, Some(offset), Some(limit)).await.map_err(AppError::UniFi)
+                })
+            },
+            25
+        ).await?;
+        
+        let clients = self.fetch_all_paged_data(
+            |offset, limit| {
+                let client = self.client.clone();
+                Box::pin(async move {
+                    client.list_clients(site_id, Some(offset), Some(limit)).await.map_err(AppError::UniFi)
+                })
+            },
+            25
+        ).await?;
+        
+        for device in &devices {
+            if let Ok(details) = self.client.get_device_details(site_id, device.id).await {
+                self.device_details.insert(device.id, details);
+            }
+            if let Ok(stats) = self.client.get_device_statistics(site_id, device.id).await {
+                self.device_stats.insert(device.id, stats.clone());
+                self.update_network_history(device.id, &stats);
+            }
+        }
+
+        if self.selected_site.as_ref().map(|s| s.site_id) == Some(site_id) {
+            self.devices = devices;
+            self.clients = clients;
+        } else {
+            self.devices.extend(devices);
+            self.clients.extend(clients);
+        }
+
+        Ok(())
+    }
+
     pub async fn refresh_data(&mut self) -> Result<()> {
         if self.last_update.elapsed() < self.refresh_interval {
             return Ok(());
         }
+        
+        let sites = self.fetch_all_paged_data(
+            |offset, limit| {
+                let client = self.client.clone();
+                Box::pin(async move {
+                    client.list_sites(Some(offset), Some(limit)).await.map_err(AppError::UniFi)
+                })
+            },
+            25
+        ).await?;
 
-        let sites = self.client.list_sites(None, None).await?;
-        self.sites = sites.data;
+        self.sites = sites;
 
         match &self.selected_site {
             Some(site) => {
@@ -135,37 +209,6 @@ impl AppState {
         self.update_stats();
         self.apply_filters();
         self.last_update = Instant::now();
-        Ok(())
-    }
-
-    async fn fetch_site_data(&mut self, site_id: Uuid) -> Result<()> {
-        let devices = self.client.list_devices(site_id, None, None).await?;
-        let clients = self.client.list_clients(site_id, None, None).await?;
-
-        for device in &devices.data {
-            if let Ok(details) = self.client.get_device_details(site_id, device.id).await {
-                self.device_details.insert(device.id, details);
-            }
-            if let Ok(stats) = self.client.get_device_statistics(site_id, device.id).await {
-                self.device_stats.insert(device.id, stats);
-            }
-        }
-
-        for device in &devices.data {
-            if let Ok(stats) = self.client.get_device_statistics(site_id, device.id).await {
-                self.device_stats.insert(device.id, stats.clone());
-                self.update_network_history(device.id, &stats);
-            }
-        }
-
-        if self.selected_site.as_ref().map(|s| s.site_id) == Some(site_id) {
-            self.devices = devices.data;
-            self.clients = clients.data;
-        } else {
-            self.devices.extend(devices.data);
-            self.clients.extend(clients.data);
-        }
-
         Ok(())
     }
 

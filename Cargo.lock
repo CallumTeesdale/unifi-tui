@@ -1565,9 +1565,9 @@ checksum = "1fc81956842c57dac11422a97c3b8195a1ff727f06e85c84ed2e8aa277c9a0fd"
 
 [[package]]
 name = "unifi-rs"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bfc8653482c626650b5850150b73a7515e5cd9af9067e188d4b8c6617db523e"
+checksum = "fb0959a59c13f23107c63b47904e4585725ec7a93edd864f87d425d541c5cd75"
 dependencies = [
  "chrono",
  "reqwest",

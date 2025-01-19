@@ -59,7 +59,7 @@ available.
 ### Unifi Devices
 ![Devices](./doc/devices.png)
 ![DeviceDetail](./doc/device-overview.png)
-![DeviceDetail2](./doc/device-network.png)
+![DeviceDetail2](./doc/device-performance.png)
 ![DeviceDetail3](./doc/device-ports.png)
 ![DeviceDetail4](./doc/device-radios.png)
 

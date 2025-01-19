@@ -103,10 +103,8 @@ fn render_client_detail(f: &mut Frame, app: &App, area: Rect) {
 
 pub fn render_dialog(f: &mut Frame, app: &mut App, area: Rect) {
     if let Some(dialog) = &app.dialog {
-        app.state
-            .set_error(format!("Rendering dialog: {}", dialog.title));
-
         let dialog_area = centered_rect(60, 15, area);
+        
         f.render_widget(Clear, dialog_area);
 
         let text = vec![
@@ -115,15 +113,16 @@ pub fn render_dialog(f: &mut Frame, app: &mut App, area: Rect) {
             Line::from(""),
             Line::from(match dialog.dialog_type {
                 DialogType::Confirmation => "(y) Confirm  (n) Cancel",
-                _ => "Press any key to close",
+                DialogType::Message => "Press any key to close",
+                DialogType::Error => "Press any key to close",
             }),
-        ];
+        ];  
 
         let dialog_widget = Paragraph::new(text)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title(dialog.title.clone()),
+                    .title(dialog.title.clone())
             )
             .alignment(Alignment::Center);
 
@@ -196,6 +195,7 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                     Line::from("  Tab    - Next view"),
                     Line::from("  S-Tab  - Previous view"),
                     Line::from("  F5     - Force refresh data"),
+                    Line::from("  r      - Restart device (a site has to be selected)"),
                     Line::from(""),
                     Line::from("Device Navigation:"),
                     Line::from("  ↑/↓    - Select device"),
