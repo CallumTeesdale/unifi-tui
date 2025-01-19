@@ -88,7 +88,7 @@ impl App {
             .await
             .map_err(|e| anyhow::anyhow!(e.to_string()))
     }
-    
+
     pub fn sort_devices(&mut self) {
         if matches!(self.device_sort_order, SortOrder::None) {
             return;

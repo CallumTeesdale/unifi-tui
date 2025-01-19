@@ -27,12 +27,11 @@ pub fn render(app: &mut App, f: &mut Frame) {
                 Constraint::Min(0),    // Content
                 Constraint::Length(1), // Status bar
             ]
-                .as_ref(),
+            .as_ref(),
         )
         .split(size);
 
     render_tabs(f, app, chunks[0]);
-    
 
     if app.dialog.is_some() {
         render_dialog(f, app, size);
@@ -104,7 +103,8 @@ fn render_client_detail(f: &mut Frame, app: &App, area: Rect) {
 
 pub fn render_dialog(f: &mut Frame, app: &mut App, area: Rect) {
     if let Some(dialog) = &app.dialog {
-        app.state.set_error(format!("Rendering dialog: {}", dialog.title));
+        app.state
+            .set_error(format!("Rendering dialog: {}", dialog.title));
 
         let dialog_area = centered_rect(60, 15, area);
         f.render_widget(Clear, dialog_area);
@@ -120,16 +120,16 @@ pub fn render_dialog(f: &mut Frame, app: &mut App, area: Rect) {
         ];
 
         let dialog_widget = Paragraph::new(text)
-            .block(Block::default()
-                .borders(Borders::ALL)
-                .title(dialog.title.clone()))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(dialog.title.clone()),
+            )
             .alignment(Alignment::Center);
 
         f.render_widget(dialog_widget, dialog_area);
     }
 }
-
-
 
 fn render_search(f: &mut Frame, app: &App, area: Rect) {
     let search_area = centered_rect(60, 3, area);
@@ -237,12 +237,12 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                 ],
                 _ => vec![],
             }
-        },
+        }
         _ => vec![Line::from("Help not available for this view")],
     };
 
-    let help = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Help"));
+    let help =
+        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Help"));
 
     f.render_widget(help, area);
 }

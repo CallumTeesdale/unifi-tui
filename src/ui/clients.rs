@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use crate::app::{App, SortOrder};
+use chrono::{DateTime, Utc};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -21,33 +21,47 @@ pub fn render_clients(f: &mut Frame, app: &App, area: Rect) {
         .map(|client| {
             let (name, ip, mac, device_name, r#type, status) = match client {
                 ClientOverview::Wired(c) => {
-                    let device_name = app.state.devices.iter()
+                    let device_name = app
+                        .state
+                        .devices
+                        .iter()
                         .find(|d| d.id == c.uplink_device_id)
                         .map_or("Unknown", |d| d.name.as_str());
 
                     (
                         c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                        c.base.ip_address.as_deref().unwrap_or("Unknown").to_string(),
+                        c.base
+                            .ip_address
+                            .as_deref()
+                            .unwrap_or("Unknown")
+                            .to_string(),
                         c.mac_address.clone(),
                         device_name.to_string(),
                         Cell::from("Wired").style(Style::default().fg(Color::Blue)),
                         Cell::from("Connected").style(Style::default().fg(Color::Green)),
                     )
-                },
+                }
                 ClientOverview::Wireless(c) => {
-                    let device_name = app.state.devices.iter()
+                    let device_name = app
+                        .state
+                        .devices
+                        .iter()
                         .find(|d| d.id == c.uplink_device_id)
                         .map_or("Unknown", |d| d.name.as_str());
 
                     (
                         c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                        c.base.ip_address.as_deref().unwrap_or("Unknown").to_string(),
+                        c.base
+                            .ip_address
+                            .as_deref()
+                            .unwrap_or("Unknown")
+                            .to_string(),
                         c.mac_address.clone(),
                         device_name.to_string(),
                         Cell::from("Wireless").style(Style::default().fg(Color::Yellow)),
                         Cell::from("Connected").style(Style::default().fg(Color::Green)),
                     )
-                },
+                }
                 _ => (
                     "Unknown".to_string(),
                     "Unknown".to_string(),
@@ -116,8 +130,8 @@ pub fn render_clients(f: &mut Frame, app: &App, area: Rect) {
     let help_text = vec![Line::from(
         "↑/↓: Select | Enter: Details | s: Sort | /: Search | ESC: Back",
     )];
-    let help = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Controls"));
+    let help =
+        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Controls"));
     f.render_widget(help, chunks[1]);
 }
 

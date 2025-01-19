@@ -1,4 +1,5 @@
 use crate::state::AppState;
+use chrono::{DateTime, Utc};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -6,7 +7,6 @@ use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 use unifi_rs::ClientOverview;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 pub struct ClientStatsView<'a> {
     client_id: Uuid,
@@ -29,11 +29,14 @@ impl<'a> ClientStatsView<'a> {
         }) {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(9),   // Connection info
-                    Constraint::Length(12),  // Device/Radio info or Port status
-                    Constraint::Min(0),      // Network stats and charts
-                ].as_ref())
+                .constraints(
+                    [
+                        Constraint::Length(9),  // Connection info
+                        Constraint::Length(12), // Device/Radio info or Port status
+                        Constraint::Min(0),     // Network stats and charts
+                    ]
+                    .as_ref(),
+                )
                 .split(area);
 
             match client {
@@ -55,8 +58,7 @@ impl<'a> ClientStatsView<'a> {
         let hours = duration.num_hours();
         let minutes = duration.num_minutes() % 60;
         let seconds = duration.num_seconds() % 60;
-        
-        
+
         let style = if hours >= 24 {
             Style::default().fg(Color::Green)
         } else if hours >= 1 {
@@ -112,7 +114,11 @@ impl<'a> ClientStatsView<'a> {
             Line::from(vec![
                 Span::styled("Connected Since: ", Style::default()),
                 Span::styled(
-                    client.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    client
+                        .base
+                        .connected_at
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                     Style::default(),
                 ),
             ]),
@@ -167,7 +173,11 @@ impl<'a> ClientStatsView<'a> {
             Line::from(vec![
                 Span::styled("Connected Since: ", Style::default()),
                 Span::styled(
-                    client.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    client
+                        .base
+                        .connected_at
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                     Style::default(),
                 ),
             ]),
@@ -188,7 +198,6 @@ impl<'a> ClientStatsView<'a> {
         f.render_widget(info, area);
     }
 
-
     fn render_wireless_device_info(
         &self,
         f: &mut Frame,
@@ -198,12 +207,15 @@ impl<'a> ClientStatsView<'a> {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(5),  // Device info
-                Constraint::Min(0),     // Radio table
+                Constraint::Length(5), // Device info
+                Constraint::Min(0),    // Radio table
             ])
             .split(area);
-        
-        if let Some(device) = self.app_state.devices.iter()
+
+        if let Some(device) = self
+            .app_state
+            .devices
+            .iter()
             .find(|d| d.id == client.uplink_device_id)
         {
             let device_text = if let Some(details) = self.app_state.device_details.get(&device.id) {
@@ -235,44 +247,54 @@ impl<'a> ClientStatsView<'a> {
                 vec![Line::from(format!("Access Point: {}", device.name))]
             };
 
-            let device_info = Paragraph::new(device_text)
-                .block(Block::default().borders(Borders::ALL).title("Access Point Information"));
+            let device_info = Paragraph::new(device_text).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Access Point Information"),
+            );
             f.render_widget(device_info, chunks[0]);
-            
-            
+
             if let Some(details) = self.app_state.device_details.get(&device.id) {
                 if let Some(interfaces) = &details.interfaces {
-                    let header = Row::new(vec![
-                        "Band",
-                        "Channel",
-                        "Width",
-                        "Quality",
-                    ]).style(Style::default().add_modifier(Modifier::BOLD));
+                    let header = Row::new(vec!["Band", "Channel", "Width", "Quality"])
+                        .style(Style::default().add_modifier(Modifier::BOLD));
 
-                    let rows: Vec<Row> = interfaces.radios.iter()
+                    let rows: Vec<Row> = interfaces
+                        .radios
+                        .iter()
                         .map(|radio| {
-                            let freq = radio.frequency_ghz.as_ref().map_or("Unknown", |f| match f {
-                                unifi_rs::FrequencyBand::Band2_4GHz => "2.4 GHz",
-                                unifi_rs::FrequencyBand::Band5GHz => "5 GHz",
-                                unifi_rs::FrequencyBand::Band6GHz => "6 GHz",
-                                unifi_rs::FrequencyBand::Band60GHz => "60 GHz",
-                            });
+                            let freq =
+                                radio.frequency_ghz.as_ref().map_or("Unknown", |f| match f {
+                                    unifi_rs::FrequencyBand::Band2_4GHz => "2.4 GHz",
+                                    unifi_rs::FrequencyBand::Band5GHz => "5 GHz",
+                                    unifi_rs::FrequencyBand::Band6GHz => "6 GHz",
+                                    unifi_rs::FrequencyBand::Band60GHz => "60 GHz",
+                                });
 
                             let channel = radio.channel.map_or("--".to_string(), |c| c.to_string());
-                            let width = radio.channel_width_mhz
+                            let width = radio
+                                .channel_width_mhz
                                 .map_or("--".to_string(), |w| format!("{} MHz", w));
-                            
-                            let quality = if let Some(stats) = self.app_state.device_stats.get(&device.id) {
+
+                            let quality = if let Some(stats) =
+                                self.app_state.device_stats.get(&device.id)
+                            {
                                 if let Some(interfaces) = &stats.interfaces {
-                                    if let Some(radio_stat) = interfaces.radios.iter()
-                                        .find(|r| r.frequency_ghz == radio.frequency_ghz) {
+                                    if let Some(radio_stat) = interfaces
+                                        .radios
+                                        .iter()
+                                        .find(|r| r.frequency_ghz == radio.frequency_ghz)
+                                    {
                                         let retry_pct = radio_stat.tx_retries_pct.unwrap_or(0.0);
                                         if retry_pct > 15.0 {
-                                            Cell::from("Poor").style(Style::default().fg(Color::Red))
+                                            Cell::from("Poor")
+                                                .style(Style::default().fg(Color::Red))
                                         } else if retry_pct > 5.0 {
-                                            Cell::from("Fair").style(Style::default().fg(Color::Yellow))
+                                            Cell::from("Fair")
+                                                .style(Style::default().fg(Color::Yellow))
                                         } else {
-                                            Cell::from("Good").style(Style::default().fg(Color::Green))
+                                            Cell::from("Good")
+                                                .style(Style::default().fg(Color::Green))
                                         }
                                     } else {
                                         Cell::from("--")
@@ -292,7 +314,7 @@ impl<'a> ClientStatsView<'a> {
                             ])
                         })
                         .collect();
-                    
+
                     let width = vec![
                         Constraint::Percentage(25),
                         Constraint::Percentage(25),
@@ -300,9 +322,11 @@ impl<'a> ClientStatsView<'a> {
                         Constraint::Percentage(25),
                     ];
 
-                    let table = Table::new(rows, width)
-                        .header(header)
-                        .block(Block::default().borders(Borders::ALL).title("Radio Information"));
+                    let table = Table::new(rows, width).header(header).block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title("Radio Information"),
+                    );
 
                     f.render_widget(table, chunks[1]);
                 }
@@ -316,16 +340,18 @@ impl<'a> ClientStatsView<'a> {
         area: Rect,
         client: &unifi_rs::WiredClientOverview,
     ) {
-        
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(5),  // Device info
-                Constraint::Min(0),     // Port table
+                Constraint::Length(5), // Device info
+                Constraint::Min(0),    // Port table
             ])
             .split(area);
-        
-        if let Some(device) = self.app_state.devices.iter()
+
+        if let Some(device) = self
+            .app_state
+            .devices
+            .iter()
             .find(|d| d.id == client.uplink_device_id)
         {
             let device_text = if let Some(details) = self.app_state.device_details.get(&device.id) {
@@ -357,21 +383,22 @@ impl<'a> ClientStatsView<'a> {
                 vec![Line::from(format!("Switch: {}", device.name))]
             };
 
-            let device_info = Paragraph::new(device_text)
-                .block(Block::default().borders(Borders::ALL).title("Switch Information"));
+            let device_info = Paragraph::new(device_text).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Switch Information"),
+            );
             f.render_widget(device_info, chunks[0]);
 
             // Port Information Table
             if let Some(details) = self.app_state.device_details.get(&device.id) {
                 if let Some(interfaces) = &details.interfaces {
-                    let header = Row::new(vec![
-                        "Port",
-                        "Type",
-                        "Speed",
-                        "Status",
-                    ]).style(Style::default().add_modifier(Modifier::BOLD));
+                    let header = Row::new(vec!["Port", "Type", "Speed", "Status"])
+                        .style(Style::default().add_modifier(Modifier::BOLD));
 
-                    let rows: Vec<Row> = interfaces.ports.iter()
+                    let rows: Vec<Row> = interfaces
+                        .ports
+                        .iter()
                         .map(|port| {
                             let port_type = format!("{:?}", port.connector);
 
@@ -406,9 +433,11 @@ impl<'a> ClientStatsView<'a> {
                         Constraint::Percentage(25),
                         Constraint::Percentage(25),
                     ];
-                    let table = Table::new(rows, width)
-                        .header(header)
-                        .block(Block::default().borders(Borders::ALL).title("Port Information"));
+                    let table = Table::new(rows, width).header(header).block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title("Port Information"),
+                    );
                     f.render_widget(table, chunks[1]);
                 }
             }
