@@ -224,6 +224,21 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                     Line::from("  s      - Sort clients (cycles through sorting options)"),
                 ],
                 3 => vec![
+                    // Topology tab
+                    Line::from("UniFi Network TUI Help - Topology View"),
+                    Line::from(""),
+                    Line::from("Global Commands:"),
+                    Line::from("  q      - Quit application"),
+                    Line::from("  ?      - Toggle this help screen"),
+                    Line::from("  Tab    - Next view"),
+                    Line::from("  S-Tab  - Previous view"),
+                    Line::from("  F5     - Force refresh data"),
+                    Line::from(""),
+                    Line::from("Topology Information:"),
+                    Line::from("  - Shows network topology and device connectivity"),
+                    Line::from("  - Updates every refresh cycle (5s by default)"),
+                ],
+                4 => vec![
                     // Stats tab
                     Line::from("UniFi Network TUI Help - Statistics View"),
                     Line::from(""),
