@@ -2,9 +2,8 @@ use crate::app::{App, SortOrder};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::symbols;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Tabs};
+use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 use unifi_rs::DeviceState;
 
@@ -171,10 +170,12 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
             let network_text = stats
                 .and_then(|s| s.uplink.as_ref())
                 .map_or("N/A".to_string(), |u| {
+                    let tx_mbps = u.tx_rate_bps as f64  / 1_000_000.0;
+                    let rx_mbps = u.rx_rate_bps as f64  / 1_000_000.0;
                     format!(
                         "↑{:.1}/↓{:.1} Mb",
-                        u.tx_rate_bps as f64 / 1_000_000.0,
-                        u.rx_rate_bps as f64 / 1_000_000.0
+                        tx_mbps,
+                        rx_mbps
                     )
                 });
 

@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::symbols;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Sparkline, Table, Tabs,
+    Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table, Tabs,
 };
 use ratatui::Frame;
 use unifi_rs::{DeviceState, FrequencyBand, PortState, WlanStandard};
@@ -400,12 +400,12 @@ impl DeviceStatsView {
                 let current_text = vec![Line::from(vec![
                     Span::raw("Current Throughput: "),
                     Span::styled(
-                        format!("↑ {:.1} Mbps", uplink.tx_rate_bps as f64 / 1_000_000.0),
+                        format!("↑ {:.1} Mbps", uplink.tx_rate_bps  as f64 / 1_000_000.0),
                         Style::default().fg(Color::Green),
                     ),
                     Span::raw(" / "),
                     Span::styled(
-                        format!("↓ {:.1} Mbps", uplink.rx_rate_bps as f64 / 1_000_000.0),
+                        format!("↓ {:.1} Mbps", uplink.rx_rate_bps  as f64 / 1_000_000.0),
                         Style::default().fg(Color::Blue),
                     ),
                 ])];

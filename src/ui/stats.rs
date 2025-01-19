@@ -118,7 +118,7 @@ fn render_device_table(f: &mut Frame, app: &App, area: Rect) {
             let traffic = stats.uplink.as_ref().map_or("N/A".to_string(), |u| {
                 format!(
                     "↑{:.1}/↓{:.1} Mb",
-                    u.tx_rate_bps as f64 / 1_000_000.0,
+                    u.tx_rate_bps  as f64 / 1_000_000.0,
                     u.rx_rate_bps as f64 / 1_000_000.0
                 )
             });

@@ -116,7 +116,7 @@ pub fn render_dialog(f: &mut Frame, app: &mut App, area: Rect) {
                 DialogType::Message => "Press any key to close",
                 DialogType::Error => "Press any key to close",
             }),
-        ];
+        ];  
 
         let dialog_widget = Paragraph::new(text)
             .block(
@@ -195,6 +195,7 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                     Line::from("  Tab    - Next view"),
                     Line::from("  S-Tab  - Previous view"),
                     Line::from("  F5     - Force refresh data"),
+                    Line::from("  r      - Restart device (a site has to be selected)"),
                     Line::from(""),
                     Line::from("Device Navigation:"),
                     Line::from("  ↑/↓    - Select device"),
