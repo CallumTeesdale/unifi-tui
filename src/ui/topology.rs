@@ -3,11 +3,14 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::Color,
     text::Line,
-    widgets::{Block, Borders, Paragraph, canvas::{Canvas, Line as CanvasLine, Points}},
+    widgets::{
+        canvas::{Canvas, Line as CanvasLine, Points},
+        Block, Borders, Paragraph,
+    },
     Frame,
 };
-use unifi_rs::{ClientOverview, DeviceState};
 use std::collections::{HashMap, HashSet};
+use unifi_rs::{ClientOverview, DeviceState};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -26,9 +29,9 @@ pub fn render_topology(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Header
-            Constraint::Min(0),     // Network graph
-            Constraint::Length(3),  // Help
+            Constraint::Length(3), // Header
+            Constraint::Min(0),    // Network graph
+            Constraint::Length(3), // Help
         ])
         .split(area);
 
@@ -38,21 +41,25 @@ pub fn render_topology(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_header(f: &mut Frame, app: &App, area: Rect) {
-    let online_devices = app.state.devices.iter()
+    let online_devices = app
+        .state
+        .devices
+        .iter()
         .filter(|d| matches!(d.state, DeviceState::Online))
         .count();
 
     let title = match &app.state.selected_site {
         Some(site) => format!(
             "Network Topology - {} [{} devices online]",
-            site.site_name,
+            site.site_name, online_devices
+        ),
+        None => format!(
+            "Network Topology - All Sites [{} devices online]",
             online_devices
         ),
-        None => format!("Network Topology - All Sites [{} devices online]", online_devices),
     };
 
-    let header = Paragraph::new(Line::from(title))
-        .block(Block::default().borders(Borders::ALL));
+    let header = Paragraph::new(Line::from(title)).block(Block::default().borders(Borders::ALL));
 
     f.render_widget(header, area);
 }
@@ -62,8 +69,8 @@ fn render_help(f: &mut Frame, area: Rect) {
         "Enter: View device details | Tab: Next tab | Esc: Back",
     )];
 
-    let help = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Controls"));
+    let help =
+        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Controls"));
 
     f.render_widget(help, area);
 }
@@ -71,11 +78,15 @@ fn render_help(f: &mut Frame, area: Rect) {
 fn render_graph(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default().borders(Borders::ALL);
     let inner_area = block.inner(area);
-    
+
     let mut nodes = create_network_nodes(app);
-    
-    layout_nodes(&mut nodes, inner_area.width as f64, inner_area.height as f64);
-    
+
+    layout_nodes(
+        &mut nodes,
+        inner_area.width as f64,
+        inner_area.height as f64,
+    );
+
     let canvas = Canvas::default()
         .block(block)
         .x_bounds([0.0, inner_area.width as f64])
@@ -104,7 +115,7 @@ fn render_graph(f: &mut Frame, app: &App, area: Rect) {
                     }
                 }
             }
-            
+
             for node in &nodes {
                 draw_device(ctx, node);
             }
@@ -128,22 +139,24 @@ fn draw_device(ctx: &mut ratatui::widgets::canvas::Context, node: &NetworkNode) 
         "Access Point" => {
             for i in 0..3 {
                 let radius = icon_size - (i as f64 * 0.8);
-                let arc_points: Vec<(f64, f64)> = (0..16).map(|j| {
-                    let angle = (j as f64) * std::f64::consts::PI / 15.0;
-                    (x + angle.cos() * radius, y + angle.sin() * radius)
-                }).collect();
+                let arc_points: Vec<(f64, f64)> = (0..16)
+                    .map(|j| {
+                        let angle = (j as f64) * std::f64::consts::PI / 15.0;
+                        (x + angle.cos() * radius, y + angle.sin() * radius)
+                    })
+                    .collect();
                 ctx.draw(&Points {
                     coords: &arc_points,
                     color,
                 });
             }
-        },
+        }
         "Switch" => {
             let points = [
-                (x - icon_size, y - icon_size/2.0),
-                (x + icon_size, y - icon_size/2.0),
-                (x + icon_size, y + icon_size/2.0),
-                (x - icon_size, y + icon_size/2.0),
+                (x - icon_size, y - icon_size / 2.0),
+                (x + icon_size, y - icon_size / 2.0),
+                (x + icon_size, y + icon_size / 2.0),
+                (x - icon_size, y + icon_size / 2.0),
             ];
 
             for i in 0..points.len() {
@@ -158,23 +171,25 @@ fn draw_device(ctx: &mut ratatui::widgets::canvas::Context, node: &NetworkNode) 
             for i in 1..4 {
                 let port_x = x - icon_size + (icon_size * 0.8 * i as f64);
                 ctx.draw(&Points {
-                    coords: &[(port_x, y + icon_size/2.0)],
+                    coords: &[(port_x, y + icon_size / 2.0)],
                     color,
                 });
             }
-        },
+        }
         _ => {
-            let circle_points: Vec<(f64, f64)> = (0..16).map(|i| {
-                let angle = (i as f64) * 2.0 * std::f64::consts::PI / 16.0;
-                (x + angle.cos() * icon_size, y + angle.sin() * icon_size)
-            }).collect();
+            let circle_points: Vec<(f64, f64)> = (0..16)
+                .map(|i| {
+                    let angle = (i as f64) * 2.0 * std::f64::consts::PI / 16.0;
+                    (x + angle.cos() * icon_size, y + angle.sin() * icon_size)
+                })
+                .collect();
             ctx.draw(&Points {
                 coords: &circle_points,
                 color,
             });
         }
     }
-    
+
     let label = format!("{} ({} clients)", node.name, node.clients);
     let offset = label.len() as f64 * 0.3;
     ctx.print(x - offset, y + icon_size + 1.0, label);
@@ -183,7 +198,7 @@ fn draw_device(ctx: &mut ratatui::widgets::canvas::Context, node: &NetworkNode) 
 fn create_network_nodes(app: &App) -> Vec<NetworkNode> {
     let mut nodes = Vec::new();
     let mut device_clients: HashMap<Uuid, usize> = HashMap::new();
-    
+
     for client in &app.state.clients {
         if let Some(device_id) = match client {
             ClientOverview::Wired(c) => Some(c.uplink_device_id),
@@ -193,7 +208,7 @@ fn create_network_nodes(app: &App) -> Vec<NetworkNode> {
             *device_clients.entry(device_id).or_insert(0) += 1;
         }
     }
-    
+
     for device in &app.state.devices {
         let device_type = if device.features.contains(&"accessPoint".to_string()) {
             "Access Point"
@@ -225,43 +240,39 @@ fn create_network_nodes(app: &App) -> Vec<NetworkNode> {
 }
 
 fn layout_nodes(nodes: &mut [NetworkNode], width: f64, height: f64) {
-    
     let existing_ids: HashSet<_> = nodes.iter().map(|n| n.id).collect();
-    let mut root_nodes: Vec<_> = nodes.iter()
+    let mut root_nodes: Vec<_> = nodes
+        .iter()
         .filter(|n| n.uplink_to.is_none() || !existing_ids.contains(&n.uplink_to.unwrap()))
         .map(|n| n.id)
         .collect();
     root_nodes.sort();
-    
+
     for root_id in root_nodes.iter() {
         if let Some(node) = nodes.iter_mut().find(|n| n.id == *root_id) {
             node.x = width / 2.0;
             node.y = height * 0.15;
         }
     }
-    
-    let second_level: Vec<_> = nodes.iter()
-        .filter(|n| {
-            n.uplink_to.is_some_and(|up| root_nodes.contains(&up))
-        })
+
+    let second_level: Vec<_> = nodes
+        .iter()
+        .filter(|n| n.uplink_to.is_some_and(|up| root_nodes.contains(&up)))
         .map(|n| n.id)
         .collect();
-    
+
     let second_count = second_level.len();
     for (i, node_id) in second_level.iter().enumerate() {
         if let Some(node) = nodes.iter_mut().find(|n| n.id == *node_id) {
-            let angle = -std::f64::consts::PI / 3.0 +
-                (i as f64 * 2.0 * std::f64::consts::PI / 3.0 / (second_count - 1).max(1) as f64);
+            let angle = -std::f64::consts::PI / 3.0
+                + (i as f64 * 2.0 * std::f64::consts::PI / 3.0 / (second_count - 1).max(1) as f64);
             let radius = height * 0.25;
-            node.x = width/2.0 + radius * angle.sin();
+            node.x = width / 2.0 + radius * angle.sin();
             node.y = height * 0.4 + radius * angle.cos().abs();
         }
     }
-    
-    let remaining: Vec<_> = nodes.iter()
-        .filter(|n| n.y == 0.0)
-        .map(|n| n.id)
-        .collect();
+
+    let remaining: Vec<_> = nodes.iter().filter(|n| n.y == 0.0).map(|n| n.id).collect();
 
     let bottom_spacing = width / (remaining.len() + 1) as f64;
     for (i, node_id) in remaining.iter().enumerate() {

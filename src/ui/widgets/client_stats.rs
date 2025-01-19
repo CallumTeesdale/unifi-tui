@@ -389,8 +389,7 @@ impl<'a> ClientStatsView<'a> {
                     .title("Switch Information"),
             );
             f.render_widget(device_info, chunks[0]);
-            
-            
+
             if let Some(details) = self.app_state.device_details.get(&device.id) {
                 if let Some(interfaces) = &details.interfaces {
                     let header = Row::new(vec!["Port", "Type", "Speed", "Status"])

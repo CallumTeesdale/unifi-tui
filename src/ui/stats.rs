@@ -1,5 +1,6 @@
 use crate::app::App;
 use crate::state::NetworkStats;
+use crate::ui::widgets::format_network_speed;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
@@ -7,7 +8,6 @@ use ratatui::widgets::{
     Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table,
 };
 use ratatui::{symbols, Frame};
-use crate::ui::widgets::format_network_speed;
 
 pub fn render_stats(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()

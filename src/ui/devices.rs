@@ -1,4 +1,5 @@
 use crate::app::{App, SortOrder};
+use crate::ui::widgets::format_network_speed;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -6,7 +7,6 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 use unifi_rs::DeviceState;
-use crate::ui::widgets::format_network_speed;
 
 pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
@@ -196,7 +196,11 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
                     .map_or("N/A".to_string(), |u| {
                         let tx_mbps = u.tx_rate_bps;
                         let rx_mbps = u.rx_rate_bps;
-                        format!("↑{}/↓{}", format_network_speed(tx_mbps), format_network_speed(rx_mbps))
+                        format!(
+                            "↑{}/↓{}",
+                            format_network_speed(tx_mbps),
+                            format_network_speed(rx_mbps)
+                        )
                     });
 
             let uptime_text = stats.map_or("N/A".to_string(), |s| {

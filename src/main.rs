@@ -98,7 +98,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                             0 => ui::sites::handle_sites_input(&mut app, key)?,
                             1 => ui::devices::handle_device_input(&mut app, key).await?,
                             2 => ui::clients::handle_client_input(&mut app, key).await?,
-                            3 => {},
+                            3 => {}
                             4 => {}
                             _ => {}
                         },
