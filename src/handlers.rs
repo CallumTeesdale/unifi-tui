@@ -37,16 +37,20 @@ pub async fn handle_global_input(app: &mut App, key: KeyEvent) -> Result<bool> {
 }
 
 pub async fn handle_dialog_input(app: &mut App, key: KeyEvent) -> Result<()> {
-    let dialog = app.dialog.take().unwrap();
-    match key.code {
-        KeyCode::Char('y') if dialog.dialog_type == DialogType::Confirmation => {
-            if let Some(callback) = dialog.callback {
-                if let Err(e) = callback(app) {
-                    app.state.set_error(format!("Operation failed: {}", e));
+    if let Some(dialog) = app.dialog.take() {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Enter if dialog.dialog_type == DialogType::Confirmation => {
+                if let Some(callback) = dialog.callback {
+                    callback(app)?;
                 }
             }
+            KeyCode::Char('n') | KeyCode::Esc => {
+                // Do nothing
+            }
+            _ => {
+                app.dialog = Some(dialog);
+            }
         }
-        _ => {}
     }
     Ok(())
 }

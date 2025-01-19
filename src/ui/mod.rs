@@ -103,10 +103,8 @@ fn render_client_detail(f: &mut Frame, app: &App, area: Rect) {
 
 pub fn render_dialog(f: &mut Frame, app: &mut App, area: Rect) {
     if let Some(dialog) = &app.dialog {
-        app.state
-            .set_error(format!("Rendering dialog: {}", dialog.title));
-
         let dialog_area = centered_rect(60, 15, area);
+        
         f.render_widget(Clear, dialog_area);
 
         let text = vec![
@@ -115,7 +113,8 @@ pub fn render_dialog(f: &mut Frame, app: &mut App, area: Rect) {
             Line::from(""),
             Line::from(match dialog.dialog_type {
                 DialogType::Confirmation => "(y) Confirm  (n) Cancel",
-                _ => "Press any key to close",
+                DialogType::Message => "Press any key to close",
+                DialogType::Error => "Press any key to close",
             }),
         ];
 
@@ -123,7 +122,7 @@ pub fn render_dialog(f: &mut Frame, app: &mut App, area: Rect) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title(dialog.title.clone()),
+                    .title(dialog.title.clone())
             )
             .alignment(Alignment::Center);
 
