@@ -8,6 +8,10 @@ A terminal user interface (TUI) using the [unifi-rs](https://crates.io/crates/un
 
 Currently, a work in progress. Intend to add more features as the unifi-rs library gets more features. 
 
+I only have a UDR, some mesh APs and a flex mini so I can only test on those devices. If you have other devices and it doesn't work, please open an issue.
+
+Also, not sure how it plays with other products in the ecosystem since I don't have access to them.
+
 
 ## Usage
 ```shell
