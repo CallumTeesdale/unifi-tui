@@ -1,6 +1,18 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2025-01-19
+
+### Features
+
+- Better ui
+- Better ui, screenshots
+
+### Miscellaneous Tasks
+
+- Clippy
+- Fmt
+
 ## [0.1.24] - 2025-01-18
 
 ### Ci
