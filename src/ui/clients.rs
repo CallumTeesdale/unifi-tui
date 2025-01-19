@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use crate::app::{App, SortOrder};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -18,45 +19,56 @@ pub fn render_clients(f: &mut Frame, app: &App, area: Rect) {
         .filtered_clients
         .iter()
         .map(|client| {
-            let (name, ip, mac, r#type, connected_since, status) = match client {
-                ClientOverview::Wired(c) => (
-                    c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                    c.base
-                        .ip_address
-                        .as_deref()
-                        .unwrap_or("Unknown")
-                        .to_string(),
-                    c.mac_address.clone(),
-                    Cell::from("Wired").style(Style::default().fg(Color::Blue)),
-                    c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                    Cell::from("Connected").style(Style::default().fg(Color::Green)),
-                ),
-                ClientOverview::Wireless(c) => (
-                    c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
-                    c.base
-                        .ip_address
-                        .as_deref()
-                        .unwrap_or("Unknown")
-                        .to_string(),
-                    c.mac_address.clone(),
-                    Cell::from("Wireless").style(Style::default().fg(Color::Yellow)),
-                    c.base.connected_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                    Cell::from("Connected").style(Style::default().fg(Color::Green)),
-                ),
+            let (name, ip, mac, device_name, r#type, status) = match client {
+                ClientOverview::Wired(c) => {
+                    let device_name = app.state.devices.iter()
+                        .find(|d| d.id == c.uplink_device_id)
+                        .map_or("Unknown", |d| d.name.as_str());
+
+                    (
+                        c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
+                        c.base.ip_address.as_deref().unwrap_or("Unknown").to_string(),
+                        c.mac_address.clone(),
+                        device_name.to_string(),
+                        Cell::from("Wired").style(Style::default().fg(Color::Blue)),
+                        Cell::from("Connected").style(Style::default().fg(Color::Green)),
+                    )
+                },
+                ClientOverview::Wireless(c) => {
+                    let device_name = app.state.devices.iter()
+                        .find(|d| d.id == c.uplink_device_id)
+                        .map_or("Unknown", |d| d.name.as_str());
+
+                    (
+                        c.base.name.as_deref().unwrap_or("Unnamed").to_string(),
+                        c.base.ip_address.as_deref().unwrap_or("Unknown").to_string(),
+                        c.mac_address.clone(),
+                        device_name.to_string(),
+                        Cell::from("Wireless").style(Style::default().fg(Color::Yellow)),
+                        Cell::from("Connected").style(Style::default().fg(Color::Green)),
+                    )
+                },
                 _ => (
                     "Unknown".to_string(),
                     "Unknown".to_string(),
                     "Unknown".to_string(),
-                    Cell::from("Other").style(Style::default().fg(Color::Red)),
                     "Unknown".to_string(),
+                    Cell::from("Other").style(Style::default().fg(Color::Red)),
                     Cell::from("Unknown").style(Style::default().fg(Color::Red)),
                 ),
+            };
+
+            let connected_since = match client {
+                ClientOverview::Wired(c) => format_duration(c.base.connected_at),
+                ClientOverview::Wireless(c) => format_duration(c.base.connected_at),
+                _ => "Unknown".to_string(),
             };
 
             Row::new(vec![
                 Cell::from(name),
                 Cell::from(ip),
                 Cell::from(mac),
+                Cell::from(device_name),
                 r#type,
                 Cell::from(connected_since),
                 status,
@@ -68,18 +80,20 @@ pub fn render_clients(f: &mut Frame, app: &App, area: Rect) {
         Cell::from("Name").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("IP").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("MAC").style(Style::default().add_modifier(Modifier::BOLD)),
+        Cell::from("Connected To").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Type").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Connected Since").style(Style::default().add_modifier(Modifier::BOLD)),
+        Cell::from("Duration").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Status").style(Style::default().add_modifier(Modifier::BOLD)),
     ]);
 
     let widths = [
         Constraint::Percentage(20),
         Constraint::Percentage(15),
-        Constraint::Percentage(20),
         Constraint::Percentage(15),
         Constraint::Percentage(20),
         Constraint::Percentage(10),
+        Constraint::Percentage(12),
+        Constraint::Percentage(8),
     ];
 
     let title = match &app.state.selected_site {
@@ -94,19 +108,33 @@ pub fn render_clients(f: &mut Frame, app: &App, area: Rect) {
     let table = Table::new(clients, widths)
         .header(header)
         .block(Block::default().borders(Borders::ALL).title(title))
-        .row_highlight_style(Style::default().bg(Color::Gray))
-        .highlight_symbol("> ");
+        .highlight_style(Style::default().bg(Color::Gray))
+        .highlight_symbol("➤ ");
 
     f.render_stateful_widget(table, chunks[0], &mut app.clients_table_state.clone());
 
     let help_text = vec![Line::from(
-        "↑/↓: Select | Enter: Details | s: Sort | /: Search",
+        "↑/↓: Select | Enter: Details | s: Sort | /: Search | ESC: Back",
     )];
-    let help =
-        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Quick Help"));
+    let help = Paragraph::new(help_text)
+        .block(Block::default().borders(Borders::ALL).title("Controls"));
     f.render_widget(help, chunks[1]);
 }
 
+fn format_duration(connected_at: DateTime<Utc>) -> String {
+    let duration = Utc::now().signed_duration_since(connected_at);
+    let hours = duration.num_hours();
+    let minutes = duration.num_minutes() % 60;
+
+    if hours > 24 {
+        let days = hours / 24;
+        format!("{}d {}h", days, hours % 24)
+    } else if hours > 0 {
+        format!("{}h {}m", hours, minutes)
+    } else {
+        format!("{}m", minutes)
+    }
+}
 pub async fn handle_client_input(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
     match key.code {
         KeyCode::Down => {

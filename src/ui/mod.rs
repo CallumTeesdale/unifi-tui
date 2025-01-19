@@ -4,7 +4,7 @@ pub mod sites;
 pub mod stats;
 pub mod status_bar;
 pub mod widgets;
-use crate::app::{App, DialogType, Mode};
+use crate::app::{App, Dialog, DialogType, Mode};
 use crate::ui::{
     clients::render_clients, devices::render_devices, sites::render_sites, stats::render_stats,
     status_bar::render_status_bar,
@@ -27,7 +27,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
                 Constraint::Min(0),    // Content
                 Constraint::Length(1), // Status bar
             ]
-            .as_ref(),
+                .as_ref(),
         )
         .split(size);
 
@@ -102,38 +102,31 @@ fn render_client_detail(f: &mut Frame, app: &App, area: Rect) {
 }
 
 pub fn render_dialog(f: &mut Frame, app: &App, area: Rect) {
-    let dialog = app.dialog.as_ref().unwrap();
+    if let Some(dialog) = &app.dialog {
+        let dialog_area = centered_rect(60, 8, area);  
+        
+        f.render_widget(Clear, dialog_area);
 
-    let style = match dialog.dialog_type {
-        DialogType::Error => Style::default(),
-        DialogType::Message => Style::default(),
-        _ => Style::default(),
-    };
+        let text = vec![
+            Line::from(""),
+            Line::from(dialog.message.clone()),
+            Line::from(""),
+            Line::from(match dialog.dialog_type {
+                DialogType::Confirmation => "(y) Confirm  (n) Cancel",
+                _ => "Press any key to close",
+            }),
+        ];
 
-    let area = centered_rect(60, 20, area);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default())
-        .title(dialog.title.clone());
+        let dialog_widget = Paragraph::new(text)
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title(dialog.title.clone()))
+            .alignment(Alignment::Center);
 
-    let text = vec![
-        Line::from(""),
-        Line::from(dialog.message.clone()),
-        Line::from(""),
-        Line::from(match dialog.dialog_type {
-            DialogType::Confirmation => "(y) Confirm  (n) Cancel",
-            _ => "Press any key to close",
-        }),
-    ];
-
-    let dialog_widget = Paragraph::new(text)
-        .block(block)
-        .style(style)
-        .alignment(Alignment::Center);
-
-    f.render_widget(Clear, area);
-    f.render_widget(dialog_widget, area);
+        f.render_widget(dialog_widget, dialog_area);
+    }
 }
+
 
 fn render_search(f: &mut Frame, app: &App, area: Rect) {
     let search_area = centered_rect(60, 3, area);
