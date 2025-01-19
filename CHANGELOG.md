@@ -1,6 +1,18 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2025-01-19
+
+### Documentation
+
+- Readme update
+
+### Miscellaneous Tasks
+
+- Cargo lock release
+- Clippy
+- Fmt
+
 ## [0.2.0] - 2025-01-19
 
 ### Features
