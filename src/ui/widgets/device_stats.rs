@@ -35,9 +35,9 @@ impl DeviceStatsView {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Title bar
-                Constraint::Length(3),  // Tabs
-                Constraint::Min(0),     // Content
+                Constraint::Length(3), // Title bar
+                Constraint::Length(3), // Tabs
+                Constraint::Min(0),    // Content
             ])
             .split(area);
 
@@ -66,19 +66,25 @@ impl DeviceStatsView {
             Span::raw(format!("Uptime: {}", uptime)),
         ])];
 
-        let header = Paragraph::new(header_text)
-            .block(Block::default().borders(Borders::ALL));
+        let header = Paragraph::new(header_text).block(Block::default().borders(Borders::ALL));
         f.render_widget(header, chunks[0]);
-        
-        
-        let is_access_point = device.features.as_ref()
+
+        let is_access_point = device
+            .features
+            .as_ref()
             .map(|f| f.access_point.is_some())
             .unwrap_or(false);
 
-        let titles = ["Overview",
+        let titles = [
+            "Overview",
             "Performance",
-            if is_access_point { "Wireless" } else { "Network" },
-            "Ports"];
+            if is_access_point {
+                "Wireless"
+            } else {
+                "Network"
+            },
+            "Ports",
+        ];
 
         let tabs = Tabs::new(titles.iter().map(|t| Line::from(*t)).collect::<Vec<_>>())
             .block(Block::default().borders(Borders::ALL))
@@ -97,9 +103,9 @@ impl DeviceStatsView {
                 } else {
                     self.render_network(f, chunks[2], app_state)
                 }
-            },
+            }
             3 => self.render_ports(f, chunks[2], app_state),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -108,24 +114,33 @@ impl DeviceStatsView {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(8),  // Basic info
-                    Constraint::Length(8),  // Resources
-                    Constraint::Min(0),     // Features
+                    Constraint::Length(8), // Basic info
+                    Constraint::Length(8), // Resources
+                    Constraint::Min(0),    // Features
                 ])
                 .split(area);
 
             let info_text = vec![
                 Line::from(vec![
                     Span::raw("MAC Address: "),
-                    Span::styled(&device.mac_address, Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        &device.mac_address,
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("IP Address:  "),
-                    Span::styled(&device.ip_address, Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        &device.ip_address,
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::raw("Firmware:    "),
-                    Span::styled(&device.firmware_version, Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        &device.firmware_version,
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                     if device.firmware_updatable {
                         Span::styled(" (Update Available)", Style::default().fg(Color::Yellow))
                     } else {
@@ -135,16 +150,19 @@ impl DeviceStatsView {
                 Line::from(vec![
                     Span::raw("Adopted:     "),
                     Span::styled(
-                        device.adopted_at.map_or("Never".to_string(), |dt|
+                        device.adopted_at.map_or("Never".to_string(), |dt| {
                             dt.format("%Y-%m-%d %H:%M:%S").to_string()
-                        ),
+                        }),
                         Style::default().add_modifier(Modifier::BOLD),
                     ),
                 ]),
             ];
 
-            let info_block = Paragraph::new(info_text)
-                .block(Block::default().borders(Borders::ALL).title("Device Information"));
+            let info_block = Paragraph::new(info_text).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Device Information"),
+            );
             f.render_widget(info_block, chunks[0]);
 
             if let Some(stats) = app_state.device_stats.get(&self.device_id) {
@@ -166,21 +184,25 @@ impl DeviceStatsView {
                     Line::from(vec![
                         Span::raw("Load Average: "),
                         Span::styled(
-                            format!("{:.2} {:.2} {:.2}",
-                                    stats.load_average_1min.unwrap_or(0.0),
-                                    stats.load_average_5min.unwrap_or(0.0),
-                                    stats.load_average_15min.unwrap_or(0.0)
+                            format!(
+                                "{:.2} {:.2} {:.2}",
+                                stats.load_average_1min.unwrap_or(0.0),
+                                stats.load_average_5min.unwrap_or(0.0),
+                                stats.load_average_15min.unwrap_or(0.0)
                             ),
                             Style::default().add_modifier(Modifier::BOLD),
                         ),
                     ]),
                 ];
 
-                let resources_block = Paragraph::new(resources_text)
-                    .block(Block::default().borders(Borders::ALL).title("Resource Utilization"));
+                let resources_block = Paragraph::new(resources_text).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Resource Utilization"),
+                );
                 f.render_widget(resources_block, chunks[1]);
             }
-            
+
             let mut feature_list = Vec::new();
             if let Some(features) = &device.features {
                 if features.switching.is_some() {
@@ -206,9 +228,15 @@ impl DeviceStatsView {
     fn get_usage_style(&self, value: f64) -> Style {
         match value {
             v if v >= 90.0 => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-            v if v >= 75.0 => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-            v if v >= 50.0 => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
-            _ => Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+            v if v >= 75.0 => Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+            v if v >= 50.0 => Style::default()
+                .fg(Color::Blue)
+                .add_modifier(Modifier::BOLD),
+            _ => Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
         }
     }
 
@@ -236,8 +264,8 @@ impl DeviceStatsView {
                     ),
                 ])];
 
-                let current_stats = Paragraph::new(current_text)
-                    .block(Block::default().borders(Borders::ALL));
+                let current_stats =
+                    Paragraph::new(current_text).block(Block::default().borders(Borders::ALL));
                 f.render_widget(current_stats, chunks[0]);
             }
         }
@@ -279,18 +307,18 @@ impl DeviceStatsView {
                 ];
 
                 let chart = Chart::new(datasets)
-                    .block(Block::default().title("Network History").borders(Borders::ALL))
+                    .block(
+                        Block::default()
+                            .title("Network History")
+                            .borders(Borders::ALL),
+                    )
                     .x_axis(
                         Axis::default()
                             .title("Time")
                             .bounds([0.0, 59.0])
-                            .labels(vec![Line::from("5m ago"), Line::from("now")])
+                            .labels(vec![Line::from("5m ago"), Line::from("now")]),
                     )
-                    .y_axis(
-                        Axis::default()
-                            .title("Mbps")
-                            .bounds([0.0, max_rate * 1.1])
-                    );
+                    .y_axis(Axis::default().title("Mbps").bounds([0.0, max_rate * 1.1]));
 
                 f.render_widget(chart, chunks[1]);
             }
@@ -302,13 +330,7 @@ impl DeviceStatsView {
             if let Some(interfaces) = &device.interfaces {
                 let radios = &interfaces.radios;
 
-                let header = Row::new(vec![
-                    "Band",
-                    "Channel",
-                    "Width",
-                    "Standard",
-                    "Retries",
-                ])
+                let header = Row::new(vec!["Band", "Channel", "Width", "Standard", "Retries"])
                     .style(Style::default().add_modifier(Modifier::BOLD));
 
                 let rows: Vec<Row> = radios
@@ -321,31 +343,41 @@ impl DeviceStatsView {
                             FrequencyBand::Band60GHz => "60 GHz",
                         });
 
-                        let standard = radio.wlan_standard.as_ref().map_or("Unknown".to_string(), |s| match s {
-                            WlanStandard::IEEE802_11A => "802.11a",
-                            WlanStandard::IEEE802_11B => "802.11b",
-                            WlanStandard::IEEE802_11G => "802.11g",
-                            WlanStandard::IEEE802_11N => "802.11n",
-                            WlanStandard::IEEE802_11AC => "802.11ac",
-                            WlanStandard::IEEE802_11AX => "802.11ax",
-                            WlanStandard::IEEE802_11BE => "802.11be",
-                        }.to_string());
+                        let standard =
+                            radio
+                                .wlan_standard
+                                .as_ref()
+                                .map_or("Unknown".to_string(), |s| {
+                                    match s {
+                                        WlanStandard::IEEE802_11A => "802.11a",
+                                        WlanStandard::IEEE802_11B => "802.11b",
+                                        WlanStandard::IEEE802_11G => "802.11g",
+                                        WlanStandard::IEEE802_11N => "802.11n",
+                                        WlanStandard::IEEE802_11AC => "802.11ac",
+                                        WlanStandard::IEEE802_11AX => "802.11ax",
+                                        WlanStandard::IEEE802_11BE => "802.11be",
+                                    }
+                                    .to_string()
+                                });
 
-                        let retry_pct = if let Some(stats) = app_state.device_stats.get(&self.device_id) {
-                            if let Some(interfaces) = &stats.interfaces {
-                                if let Some(radio_stat) = interfaces.radios.iter()
-                                    .find(|r| r.frequency_ghz == radio.frequency_ghz)
-                                {
-                                    radio_stat.tx_retries_pct
+                        let retry_pct =
+                            if let Some(stats) = app_state.device_stats.get(&self.device_id) {
+                                if let Some(interfaces) = &stats.interfaces {
+                                    if let Some(radio_stat) = interfaces
+                                        .radios
+                                        .iter()
+                                        .find(|r| r.frequency_ghz == radio.frequency_ghz)
+                                    {
+                                        radio_stat.tx_retries_pct
+                                    } else {
+                                        None
+                                    }
                                 } else {
                                     None
                                 }
                             } else {
                                 None
-                            }
-                        } else {
-                            None
-                        };
+                            };
 
                         let retry_cell = match retry_pct {
                             Some(pct) => {
@@ -355,14 +387,18 @@ impl DeviceStatsView {
                                     _ => Style::default().fg(Color::Green),
                                 };
                                 Cell::from(format!("{:.1}%", pct)).style(style)
-                            },
+                            }
                             None => Cell::from("N/A"),
                         };
 
                         Row::new(vec![
                             Cell::from(freq),
                             Cell::from(radio.channel.map_or("--".to_string(), |c| c.to_string())),
-                            Cell::from(radio.channel_width_mhz.map_or("--".to_string(), |w| format!("{} MHz", w))),
+                            Cell::from(
+                                radio
+                                    .channel_width_mhz
+                                    .map_or("--".to_string(), |w| format!("{} MHz", w)),
+                            ),
                             Cell::from(standard),
                             retry_cell,
                         ])
@@ -377,9 +413,11 @@ impl DeviceStatsView {
                     Constraint::Percentage(20),
                 ];
 
-                let table = Table::new(rows, widths)
-                    .header(header)
-                    .block(Block::default().title("Radio Information").borders(Borders::ALL));
+                let table = Table::new(rows, widths).header(header).block(
+                    Block::default()
+                        .title("Radio Information")
+                        .borders(Borders::ALL),
+                );
 
                 f.render_widget(table, area);
             }
@@ -394,29 +432,28 @@ impl DeviceStatsView {
                 Constraint::Min(0),    // Graph
             ])
             .split(area);
-        
+
         if let Some(stats) = app_state.device_stats.get(&self.device_id) {
             if let Some(uplink) = &stats.uplink {
                 let current_text = vec![Line::from(vec![
                     Span::raw("Current Throughput: "),
                     Span::styled(
-                        format!("↑ {:.1} Mbps", uplink.tx_rate_bps  as f64 / 1_000_000.0),
+                        format!("↑ {:.1} Mbps", uplink.tx_rate_bps as f64 / 1_000_000.0),
                         Style::default().fg(Color::Green),
                     ),
                     Span::raw(" / "),
                     Span::styled(
-                        format!("↓ {:.1} Mbps", uplink.rx_rate_bps  as f64 / 1_000_000.0),
+                        format!("↓ {:.1} Mbps", uplink.rx_rate_bps as f64 / 1_000_000.0),
                         Style::default().fg(Color::Blue),
                     ),
                 ])];
 
-                let current_stats = Paragraph::new(current_text)
-                    .block(Block::default().borders(Borders::ALL));
+                let current_stats =
+                    Paragraph::new(current_text).block(Block::default().borders(Borders::ALL));
                 f.render_widget(current_stats, chunks[0]);
             }
         }
 
-        
         if let Some(history) = app_state.network_history.get(&self.device_id) {
             let history_vec: Vec<_> = history.iter().collect();
 
@@ -454,18 +491,18 @@ impl DeviceStatsView {
                 ];
 
                 let chart = Chart::new(datasets)
-                    .block(Block::default().title("Network History").borders(Borders::ALL))
+                    .block(
+                        Block::default()
+                            .title("Network History")
+                            .borders(Borders::ALL),
+                    )
                     .x_axis(
                         Axis::default()
                             .title("Time")
                             .bounds([0.0, 59.0])
-                            .labels(vec![Line::from("5m ago"), Line::from("now")])
+                            .labels(vec![Line::from("5m ago"), Line::from("now")]),
                     )
-                    .y_axis(
-                        Axis::default()
-                            .title("Mbps")
-                            .bounds([0.0, max_rate * 1.1])
-                    );
+                    .y_axis(Axis::default().title("Mbps").bounds([0.0, max_rate * 1.1]));
 
                 f.render_widget(chart, chunks[1]);
             }
@@ -476,16 +513,12 @@ impl DeviceStatsView {
         if let Some(device) = app_state.device_details.get(&self.device_id) {
             if let Some(interfaces) = &device.interfaces {
                 if !interfaces.ports.is_empty() {
-                    let header = Row::new(vec![
-                        "Port",
-                        "Type",
-                        "Status",
-                        "Speed",
-                        "Max Speed",
-                    ])
+                    let header = Row::new(vec!["Port", "Type", "Status", "Speed", "Max Speed"])
                         .style(Style::default().add_modifier(Modifier::BOLD));
 
-                    let rows: Vec<Row> = interfaces.ports.iter()
+                    let rows: Vec<Row> = interfaces
+                        .ports
+                        .iter()
                         .map(|port| {
                             let status_style = match port.state {
                                 PortState::Up => Style::default().fg(Color::Green),

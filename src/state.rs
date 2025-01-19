@@ -129,26 +129,36 @@ impl AppState {
     }
 
     async fn fetch_site_data(&mut self, site_id: Uuid) -> Result<()> {
-        let devices = self.fetch_all_paged_data(
-            |offset, limit| {
-                let client = self.client.clone();
-                Box::pin(async move {
-                    client.list_devices(site_id, Some(offset), Some(limit)).await.map_err(AppError::UniFi)
-                })
-            },
-            25
-        ).await?;
-        
-        let clients = self.fetch_all_paged_data(
-            |offset, limit| {
-                let client = self.client.clone();
-                Box::pin(async move {
-                    client.list_clients(site_id, Some(offset), Some(limit)).await.map_err(AppError::UniFi)
-                })
-            },
-            25
-        ).await?;
-        
+        let devices = self
+            .fetch_all_paged_data(
+                |offset, limit| {
+                    let client = self.client.clone();
+                    Box::pin(async move {
+                        client
+                            .list_devices(site_id, Some(offset), Some(limit))
+                            .await
+                            .map_err(AppError::UniFi)
+                    })
+                },
+                25,
+            )
+            .await?;
+
+        let clients = self
+            .fetch_all_paged_data(
+                |offset, limit| {
+                    let client = self.client.clone();
+                    Box::pin(async move {
+                        client
+                            .list_clients(site_id, Some(offset), Some(limit))
+                            .await
+                            .map_err(AppError::UniFi)
+                    })
+                },
+                25,
+            )
+            .await?;
+
         for device in &devices {
             if let Ok(details) = self.client.get_device_details(site_id, device.id).await {
                 self.device_details.insert(device.id, details);
@@ -174,16 +184,21 @@ impl AppState {
         if self.last_update.elapsed() < self.refresh_interval {
             return Ok(());
         }
-        
-        let sites = self.fetch_all_paged_data(
-            |offset, limit| {
-                let client = self.client.clone();
-                Box::pin(async move {
-                    client.list_sites(Some(offset), Some(limit)).await.map_err(AppError::UniFi)
-                })
-            },
-            25
-        ).await?;
+
+        let sites = self
+            .fetch_all_paged_data(
+                |offset, limit| {
+                    let client = self.client.clone();
+                    Box::pin(async move {
+                        client
+                            .list_sites(Some(offset), Some(limit))
+                            .await
+                            .map_err(AppError::UniFi)
+                    })
+                },
+                25,
+            )
+            .await?;
 
         self.sites = sites;
 

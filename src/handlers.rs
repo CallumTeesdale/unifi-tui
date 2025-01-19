@@ -39,7 +39,9 @@ pub async fn handle_global_input(app: &mut App, key: KeyEvent) -> Result<bool> {
 pub async fn handle_dialog_input(app: &mut App, key: KeyEvent) -> Result<()> {
     if let Some(dialog) = app.dialog.take() {
         match key.code {
-            KeyCode::Char('y') | KeyCode::Enter if dialog.dialog_type == DialogType::Confirmation => {
+            KeyCode::Char('y') | KeyCode::Enter
+                if dialog.dialog_type == DialogType::Confirmation =>
+            {
                 if let Some(callback) = dialog.callback {
                     callback(app)?;
                 }

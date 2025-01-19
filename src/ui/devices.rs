@@ -11,9 +11,9 @@ pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Summary header
-            Constraint::Min(0),     // Device table
-            Constraint::Length(3),  // Controls
+            Constraint::Length(3), // Summary header
+            Constraint::Min(0),    // Device table
+            Constraint::Length(3), // Controls
         ])
         .split(area);
 
@@ -23,27 +23,37 @@ pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn render_device_summary(f: &mut Frame, app: &App, area: Rect) {
-    let online_count = app.state.filtered_devices
+    let online_count = app
+        .state
+        .filtered_devices
         .iter()
         .filter(|d| matches!(d.state, DeviceState::Online))
         .count();
 
-    let updating_count = app.state.filtered_devices
+    let updating_count = app
+        .state
+        .filtered_devices
         .iter()
         .filter(|d| matches!(d.state, DeviceState::Updating))
         .count();
 
-    let offline_count = app.state.filtered_devices
+    let offline_count = app
+        .state
+        .filtered_devices
         .iter()
         .filter(|d| matches!(d.state, DeviceState::Offline))
         .count();
 
-    let ap_count = app.state.filtered_devices
+    let ap_count = app
+        .state
+        .filtered_devices
         .iter()
         .filter(|d| d.features.contains(&"accessPoint".to_string()))
         .count();
 
-    let switch_count = app.state.filtered_devices
+    let switch_count = app
+        .state
+        .filtered_devices
         .iter()
         .filter(|d| d.features.contains(&"switching".to_string()))
         .count();
@@ -53,38 +63,46 @@ fn render_device_summary(f: &mut Frame, app: &App, area: Rect) {
             Span::styled("Total: ", Style::default()),
             Span::styled(
                 app.state.filtered_devices.len().to_string(),
-                Style::default().add_modifier(Modifier::BOLD)
+                Style::default().add_modifier(Modifier::BOLD),
             ),
             Span::raw(" | "),
             Span::styled("Online: ", Style::default().fg(Color::Green)),
             Span::styled(
                 online_count.to_string(),
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" | "),
             Span::styled("Updating: ", Style::default().fg(Color::Yellow)),
             Span::styled(
                 updating_count.to_string(),
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" | "),
             Span::styled("Offline: ", Style::default().fg(Color::Red)),
             Span::styled(
                 offline_count.to_string(),
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
             Span::styled("📡 APs: ", Style::default().fg(Color::Cyan)),
             Span::styled(
                 ap_count.to_string(),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" | "),
             Span::styled("🔌 Switches: ", Style::default().fg(Color::Yellow)),
             Span::styled(
                 switch_count.to_string(),
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
     ];
@@ -94,8 +112,8 @@ fn render_device_summary(f: &mut Frame, app: &App, area: Rect) {
         None => "Device Summary - All Sites".to_string(),
     };
 
-    let summary = Paragraph::new(summary_text)
-        .block(Block::default().borders(Borders::ALL).title(title));
+    let summary =
+        Paragraph::new(summary_text).block(Block::default().borders(Borders::ALL).title(title));
 
     f.render_widget(summary, area);
 }
@@ -135,49 +153,50 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
         Cell::from("Uptime").style(Style::default().add_modifier(Modifier::BOLD)),
     ]);
 
-    let rows: Vec<Row> = app.state.filtered_devices
+    let rows: Vec<Row> = app
+        .state
+        .filtered_devices
         .iter()
         .map(|device| {
             let stats = app.state.device_stats.get(&device.id);
             let details = app.state.device_details.get(&device.id);
-            
-            let cpu_text = stats
-                .and_then(|s| s.cpu_utilization_pct)
-                .map_or("N/A".to_string(), |cpu| {
-                    let sparkline = match cpu {
-                        c if c >= 90.0 => "█",
-                        c if c >= 75.0 => "▇",
-                        c if c >= 50.0 => "▅",
-                        c if c >= 25.0 => "▃",
-                        _ => "▁",
-                    };
-                    format!("{}  {:.1}%", sparkline, cpu)
-                });
 
-            let memory_text = stats
-                .and_then(|s| s.memory_utilization_pct)
-                .map_or("N/A".to_string(), |mem| {
-                    let sparkline = match mem {
-                        m if m >= 90.0 => "█",
-                        m if m >= 75.0 => "▇",
-                        m if m >= 50.0 => "▅",
-                        m if m >= 25.0 => "▃",
-                        _ => "▁",
-                    };
-                    format!("{}  {:.1}%", sparkline, mem)
-                });
+            let cpu_text =
+                stats
+                    .and_then(|s| s.cpu_utilization_pct)
+                    .map_or("N/A".to_string(), |cpu| {
+                        let sparkline = match cpu {
+                            c if c >= 90.0 => "█",
+                            c if c >= 75.0 => "▇",
+                            c if c >= 50.0 => "▅",
+                            c if c >= 25.0 => "▃",
+                            _ => "▁",
+                        };
+                        format!("{}  {:.1}%", sparkline, cpu)
+                    });
 
-            let network_text = stats
-                .and_then(|s| s.uplink.as_ref())
-                .map_or("N/A".to_string(), |u| {
-                    let tx_mbps = u.tx_rate_bps as f64  / 1_000_000.0;
-                    let rx_mbps = u.rx_rate_bps as f64  / 1_000_000.0;
-                    format!(
-                        "↑{:.1}/↓{:.1} Mb",
-                        tx_mbps,
-                        rx_mbps
-                    )
-                });
+            let memory_text =
+                stats
+                    .and_then(|s| s.memory_utilization_pct)
+                    .map_or("N/A".to_string(), |mem| {
+                        let sparkline = match mem {
+                            m if m >= 90.0 => "█",
+                            m if m >= 75.0 => "▇",
+                            m if m >= 50.0 => "▅",
+                            m if m >= 25.0 => "▃",
+                            _ => "▁",
+                        };
+                        format!("{}  {:.1}%", sparkline, mem)
+                    });
+
+            let network_text =
+                stats
+                    .and_then(|s| s.uplink.as_ref())
+                    .map_or("N/A".to_string(), |u| {
+                        let tx_mbps = u.tx_rate_bps as f64 / 1_000_000.0;
+                        let rx_mbps = u.rx_rate_bps as f64 / 1_000_000.0;
+                        format!("↑{:.1}/↓{:.1} Mb", tx_mbps, rx_mbps)
+                    });
 
             let uptime_text = stats.map_or("N/A".to_string(), |s| {
                 let hours = s.uptime_sec / 3600;
@@ -196,18 +215,15 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
                 Cell::from(cpu_text).style(
                     stats
                         .and_then(|s| s.cpu_utilization_pct)
-                        .map_or(Style::default(), get_resource_style)
+                        .map_or(Style::default(), get_resource_style),
                 ),
                 Cell::from(memory_text).style(
                     stats
                         .and_then(|s| s.memory_utilization_pct)
-                        .map_or(Style::default(), get_resource_style)
+                        .map_or(Style::default(), get_resource_style),
                 ),
                 Cell::from(network_text),
-                Cell::from(
-                    details
-                        .map_or("N/A".to_string(), |d| d.firmware_version.clone())
-                ),
+                Cell::from(details.map_or("N/A".to_string(), |d| d.firmware_version.clone())),
                 Cell::from(uptime_text),
             ])
         })
@@ -243,19 +259,17 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn render_device_controls(f: &mut Frame, area: Rect) {
-    let help_text = vec![
-        Line::from(vec![
-            Span::raw("↑/↓: Select  "),
-            Span::raw("Enter: Details  "),
-            Span::raw("s: Sort  "),
-            Span::raw("/: Search  "),
-            Span::raw("r: Restart  "),
-            Span::raw("ESC: Back"),
-        ]),
-    ];
+    let help_text = vec![Line::from(vec![
+        Span::raw("↑/↓: Select  "),
+        Span::raw("Enter: Details  "),
+        Span::raw("s: Sort  "),
+        Span::raw("/: Search  "),
+        Span::raw("r: Restart  "),
+        Span::raw("ESC: Back"),
+    ])];
 
-    let help = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Controls"));
+    let help =
+        Paragraph::new(help_text).block(Block::default().borders(Borders::ALL).title("Controls"));
 
     f.render_widget(help, area);
 }
@@ -316,7 +330,8 @@ pub async fn handle_device_input(app: &mut App, key: KeyEvent) -> anyhow::Result
                                 let client = app.state.client.clone();
                                 let site_id = site.site_id;
                                 tokio::spawn(async move {
-                                    if let Err(e) = client.restart_device(site_id, device.id).await {
+                                    if let Err(e) = client.restart_device(site_id, device.id).await
+                                    {
                                         eprintln!("Failed to restart device: {}", e);
                                     }
                                 });
