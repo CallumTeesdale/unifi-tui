@@ -6,6 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 use unifi_rs::DeviceState;
+use crate::ui::widgets::format_network_speed;
 
 pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
@@ -148,7 +149,7 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
         Cell::from("Status").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Load").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Memory").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Network").style(Style::default().add_modifier(Modifier::BOLD)),
+        Cell::from("TX/RX").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Firmware").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Uptime").style(Style::default().add_modifier(Modifier::BOLD)),
     ]);
@@ -193,9 +194,9 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
                 stats
                     .and_then(|s| s.uplink.as_ref())
                     .map_or("N/A".to_string(), |u| {
-                        let tx_mbps = u.tx_rate_bps as f64 / 1_000_000.0;
-                        let rx_mbps = u.rx_rate_bps as f64 / 1_000_000.0;
-                        format!("↑{:.1}/↓{:.1} Mb", tx_mbps, rx_mbps)
+                        let tx_mbps = u.tx_rate_bps;
+                        let rx_mbps = u.rx_rate_bps;
+                        format!("↑{}/↓{}", format_network_speed(tx_mbps), format_network_speed(rx_mbps))
                     });
 
             let uptime_text = stats.map_or("N/A".to_string(), |s| {

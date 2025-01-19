@@ -9,6 +9,7 @@ use ratatui::widgets::{
 use ratatui::Frame;
 use unifi_rs::{DeviceState, FrequencyBand, PortState, WlanStandard};
 use uuid::Uuid;
+use crate::ui::widgets::format_network_speed;
 
 pub struct DeviceStatsView {
     pub device_id: Uuid,
@@ -23,91 +24,90 @@ impl DeviceStatsView {
         }
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect, app_state: &AppState) {
-        let device = if let Some(device) = app_state.device_details.get(&self.device_id) {
-            device
+   pub fn render(&self, f: &mut Frame, area: Rect, app_state: &AppState) {
+    let device = if let Some(device) = app_state.device_details.get(&self.device_id) {
+        device
+    } else {
+        return;
+    };
+
+    let stats = app_state.device_stats.get(&self.device_id);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title bar
+            Constraint::Length(3), // Tabs
+            Constraint::Min(0),    // Content
+        ])
+        .split(area);
+
+    let status_style = match device.state {
+        DeviceState::Online => Style::default().fg(Color::Green),
+        DeviceState::Offline => Style::default().fg(Color::Red),
+        _ => Style::default().fg(Color::Yellow),
+    };
+
+    let title = format!("{} - {}", device.name, device.model);
+    let status_text = format!("{:?}", device.state);
+    let uptime = stats.map_or("N/A".to_string(), |s| {
+        let hours = s.uptime_sec / 3600;
+        if hours > 24 {
+            format!("{}d {}h", hours / 24, hours % 24)
         } else {
-            return;
-        };
-
-        let stats = app_state.device_stats.get(&self.device_id);
-
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Title bar
-                Constraint::Length(3), // Tabs
-                Constraint::Min(0),    // Content
-            ])
-            .split(area);
-
-        let status_style = match device.state {
-            DeviceState::Online => Style::default().fg(Color::Green),
-            DeviceState::Offline => Style::default().fg(Color::Red),
-            _ => Style::default().fg(Color::Yellow),
-        };
-
-        let title = format!("{} - {}", device.name, device.model);
-        let status_text = format!("{:?}", device.state);
-        let uptime = stats.map_or("N/A".to_string(), |s| {
-            let hours = s.uptime_sec / 3600;
-            if hours > 24 {
-                format!("{}d {}h", hours / 24, hours % 24)
-            } else {
-                format!("{}h", hours)
-            }
-        });
-
-        let header_text = vec![Line::from(vec![
-            Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" | "),
-            Span::styled(status_text, status_style),
-            Span::raw(" | "),
-            Span::raw(format!("Uptime: {}", uptime)),
-        ])];
-
-        let header = Paragraph::new(header_text).block(Block::default().borders(Borders::ALL));
-        f.render_widget(header, chunks[0]);
-
-        let is_access_point = device
-            .features
-            .as_ref()
-            .map(|f| f.access_point.is_some())
-            .unwrap_or(false);
-
-        let titles = [
-            "Overview",
-            "Performance",
-            if is_access_point {
-                "Wireless"
-            } else {
-                "Network"
-            },
-            "Ports",
-        ];
-
-        let tabs = Tabs::new(titles.iter().map(|t| Line::from(*t)).collect::<Vec<_>>())
-            .block(Block::default().borders(Borders::ALL))
-            .select(self.current_tab)
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-            .divider("|");
-
-        f.render_widget(tabs, chunks[1]);
-
-        match self.current_tab {
-            0 => self.render_overview(f, chunks[2], app_state),
-            1 => self.render_performance(f, chunks[2], app_state),
-            2 => {
-                if is_access_point {
-                    self.render_wireless(f, chunks[2], app_state)
-                } else {
-                    self.render_network(f, chunks[2], app_state)
-                }
-            }
-            3 => self.render_ports(f, chunks[2], app_state),
-            _ => {}
+            format!("{}h", hours)
         }
+    });
+
+    let header_text = vec![Line::from(vec![
+        Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" | "),
+        Span::styled(status_text, status_style),
+        Span::raw(" | "),
+        Span::raw(format!("Uptime: {}", uptime)),
+    ])];
+
+    let header = Paragraph::new(header_text).block(Block::default().borders(Borders::ALL));
+    f.render_widget(header, chunks[0]);
+
+    let is_access_point = device
+        .features
+        .as_ref()
+        .map(|f| f.access_point.is_some())
+        .unwrap_or(false);
+
+    let titles = if is_access_point {
+        vec!["Overview", "Performance", "Wireless", "Ports"]
+    } else {
+        vec!["Overview", "Performance", "Ports"]
+    };
+
+    let tabs = Tabs::new(titles.iter().map(|t| Line::from(*t)).collect::<Vec<_>>())
+        .block(Block::default().borders(Borders::ALL))
+        .select(self.current_tab)
+        .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+        .divider("|");
+
+    f.render_widget(tabs, chunks[1]);
+
+    match self.current_tab {
+        0 => self.render_overview(f, chunks[2], app_state),
+        1 => self.render_performance(f, chunks[2], app_state),
+        2 => {
+            if is_access_point {
+                self.render_wireless(f, chunks[2], app_state)
+            } else {
+                self.render_ports(f, chunks[2], app_state)
+            }
+        }
+        3 => {
+            if is_access_point {
+                self.render_ports(f, chunks[2], app_state)
+            }
+        }
+        _ => {}
     }
+}
 
     fn render_overview(&self, f: &mut Frame, area: Rect, app_state: &AppState) {
         if let Some(device) = app_state.device_details.get(&self.device_id) {
@@ -252,14 +252,14 @@ impl DeviceStatsView {
         if let Some(stats) = app_state.device_stats.get(&self.device_id) {
             if let Some(uplink) = &stats.uplink {
                 let current_text = vec![Line::from(vec![
-                    Span::raw("Current Throughput: "),
+                    Span::raw("Current Link Speed: "),
                     Span::styled(
-                        format!("↑ {:.1} Mbps", uplink.tx_rate_bps as f64 / 1_000_000.0),
+                        format!("↑ {}", format_network_speed(uplink.tx_rate_bps)),
                         Style::default().fg(Color::Green),
                     ),
                     Span::raw(" / "),
                     Span::styled(
-                        format!("↓ {:.1} Mbps", uplink.rx_rate_bps as f64 / 1_000_000.0),
+                        format!("↓ {}", format_network_speed(uplink.rx_rate_bps)),
                         Style::default().fg(Color::Blue),
                     ),
                 ])];
@@ -277,29 +277,32 @@ impl DeviceStatsView {
                 let tx_data: Vec<(f64, f64)> = history_vec
                     .iter()
                     .enumerate()
-                    .map(|(i, point)| (i as f64, point.tx_rate))
+                    .map(|(i, point)| (i as f64, point.tx_rate as f64))
                     .collect();
 
                 let rx_data: Vec<(f64, f64)> = history_vec
                     .iter()
                     .enumerate()
-                    .map(|(i, point)| (i as f64, point.rx_rate))
+                    .map(|(i, point)| (i as f64, point.rx_rate as f64))
                     .collect();
 
                 let max_rate = history_vec
                     .iter()
-                    .map(|point| point.tx_rate.max(point.rx_rate))
+                    .map(|point| point.tx_rate.max(point.rx_rate) as f64)
                     .fold(0.0, f64::max);
-
-                let datasets = vec![
+                
+                let max_label = format_network_speed(max_rate as i64);
+                let y_labels = [Line::from("0"), Line::from(max_label)];
+                    
+                    let datasets = vec![
                     Dataset::default()
-                        .name("Upload")
+                        .name("TX")
                         .marker(symbols::Marker::Dot)
                         .graph_type(GraphType::Line)
                         .style(Style::default().fg(Color::Green))
                         .data(&tx_data),
                     Dataset::default()
-                        .name("Download")
+                        .name("RX")
                         .marker(symbols::Marker::Dot)
                         .graph_type(GraphType::Line)
                         .style(Style::default().fg(Color::Blue))
@@ -309,7 +312,7 @@ impl DeviceStatsView {
                 let chart = Chart::new(datasets)
                     .block(
                         Block::default()
-                            .title("Network History")
+                            .title("Link Speed History")
                             .borders(Borders::ALL),
                     )
                     .x_axis(
@@ -318,7 +321,7 @@ impl DeviceStatsView {
                             .bounds([0.0, 59.0])
                             .labels(vec![Line::from("5m ago"), Line::from("now")]),
                     )
-                    .y_axis(Axis::default().title("Mbps").bounds([0.0, max_rate * 1.1]));
+                    .y_axis(Axis::default().title("Speed").labels(y_labels).bounds([0.0, max_rate * 1.1]));
 
                 f.render_widget(chart, chunks[1]);
             }
@@ -423,92 +426,7 @@ impl DeviceStatsView {
             }
         }
     }
-
-    fn render_network(&self, f: &mut Frame, area: Rect, app_state: &AppState) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Current throughput
-                Constraint::Min(0),    // Graph
-            ])
-            .split(area);
-
-        if let Some(stats) = app_state.device_stats.get(&self.device_id) {
-            if let Some(uplink) = &stats.uplink {
-                let current_text = vec![Line::from(vec![
-                    Span::raw("Current Throughput: "),
-                    Span::styled(
-                        format!("↑ {:.1} Mbps", uplink.tx_rate_bps as f64 / 1_000_000.0),
-                        Style::default().fg(Color::Green),
-                    ),
-                    Span::raw(" / "),
-                    Span::styled(
-                        format!("↓ {:.1} Mbps", uplink.rx_rate_bps as f64 / 1_000_000.0),
-                        Style::default().fg(Color::Blue),
-                    ),
-                ])];
-
-                let current_stats =
-                    Paragraph::new(current_text).block(Block::default().borders(Borders::ALL));
-                f.render_widget(current_stats, chunks[0]);
-            }
-        }
-
-        if let Some(history) = app_state.network_history.get(&self.device_id) {
-            let history_vec: Vec<_> = history.iter().collect();
-
-            if !history_vec.is_empty() {
-                let tx_data: Vec<(f64, f64)> = history_vec
-                    .iter()
-                    .enumerate()
-                    .map(|(i, point)| (i as f64, point.tx_rate))
-                    .collect();
-
-                let rx_data: Vec<(f64, f64)> = history_vec
-                    .iter()
-                    .enumerate()
-                    .map(|(i, point)| (i as f64, point.rx_rate))
-                    .collect();
-
-                let max_rate = history_vec
-                    .iter()
-                    .map(|point| point.tx_rate.max(point.rx_rate))
-                    .fold(0.0, f64::max);
-
-                let datasets = vec![
-                    Dataset::default()
-                        .name("Upload")
-                        .marker(symbols::Marker::Dot)
-                        .graph_type(GraphType::Line)
-                        .style(Style::default().fg(Color::Green))
-                        .data(&tx_data),
-                    Dataset::default()
-                        .name("Download")
-                        .marker(symbols::Marker::Dot)
-                        .graph_type(GraphType::Line)
-                        .style(Style::default().fg(Color::Blue))
-                        .data(&rx_data),
-                ];
-
-                let chart = Chart::new(datasets)
-                    .block(
-                        Block::default()
-                            .title("Network History")
-                            .borders(Borders::ALL),
-                    )
-                    .x_axis(
-                        Axis::default()
-                            .title("Time")
-                            .bounds([0.0, 59.0])
-                            .labels(vec![Line::from("5m ago"), Line::from("now")]),
-                    )
-                    .y_axis(Axis::default().title("Mbps").bounds([0.0, max_rate * 1.1]));
-
-                f.render_widget(chart, chunks[1]);
-            }
-        }
-    }
-
+    
     fn render_ports(&self, f: &mut Frame, area: Rect, app_state: &AppState) {
         if let Some(device) = app_state.device_details.get(&self.device_id) {
             if let Some(interfaces) = &device.interfaces {

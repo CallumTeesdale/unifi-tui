@@ -27,8 +27,8 @@ pub struct NetworkStats {
 #[allow(dead_code)]
 pub struct NetworkThroughput {
     pub timestamp: DateTime<Utc>,
-    pub tx_rate: f64,
-    pub rx_rate: f64,
+    pub tx_rate: i64,
+    pub rx_rate: i64,
 }
 
 #[derive(Clone)]
@@ -91,8 +91,8 @@ impl AppState {
 
             let throughput = NetworkThroughput {
                 timestamp: Utc::now(),
-                tx_rate: uplink.tx_rate_bps as f64 / 1_000_000.0,
-                rx_rate: uplink.rx_rate_bps as f64 / 1_000_000.0,
+                tx_rate: uplink.tx_rate_bps,
+                rx_rate: uplink.rx_rate_bps,
             };
 
             if history.len() >= 60 {
