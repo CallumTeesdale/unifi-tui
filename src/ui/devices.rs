@@ -1,4 +1,4 @@
-use crate::app::{App, Dialog, DialogType, SortOrder};
+use crate::app::{App, SortOrder};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};

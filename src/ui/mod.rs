@@ -4,7 +4,7 @@ pub mod sites;
 pub mod stats;
 pub mod status_bar;
 pub mod widgets;
-use crate::app::{App, Dialog, DialogType, Mode};
+use crate::app::{App, DialogType, Mode};
 use crate::ui::{
     clients::render_clients, devices::render_devices, sites::render_sites, stats::render_stats,
     status_bar::render_status_bar,
