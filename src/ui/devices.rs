@@ -196,12 +196,12 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
                 Cell::from(cpu_text).style(
                     stats
                         .and_then(|s| s.cpu_utilization_pct)
-                        .map_or(Style::default(), |cpu| get_resource_style(cpu))
+                        .map_or(Style::default(), get_resource_style)
                 ),
                 Cell::from(memory_text).style(
                     stats
                         .and_then(|s| s.memory_utilization_pct)
-                        .map_or(Style::default(), |mem| get_resource_style(mem))
+                        .map_or(Style::default(), get_resource_style)
                 ),
                 Cell::from(network_text),
                 Cell::from(
