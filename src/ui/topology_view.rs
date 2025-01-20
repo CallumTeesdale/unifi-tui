@@ -200,62 +200,44 @@ impl TopologyView {
     }
 
     pub fn handle_mouse_event(&mut self, event: MouseEvent, area: Rect) {
-        let effective_area = Rect::new(
-            area.x + 1,
-            area.y + 1,
-            area.width.saturating_sub(2),
-            area.height.saturating_sub(2)
-        );
-
-        // Convert mouse coordinates to relative position (0.0 to 1.0)
-        let rel_x = (event.column.saturating_sub(effective_area.x) as f64) / (effective_area.width as f64);
-        let rel_y = (event.row.saturating_sub(effective_area.y) as f64) / (effective_area.height as f64);
-
-        // Scale to canvas coordinates
-        let canvas_x = rel_x * 100.0;
-        let canvas_y = rel_y * 100.0;
-
-        log::debug!(
-        "Mouse event - Screen: ({}, {}), Effective: ({}, {}), Canvas: ({:.2}, {:.2})", 
-        event.column, event.row, 
-        event.column.saturating_sub(effective_area.x),
-        event.row.saturating_sub(effective_area.y),
-        canvas_x, canvas_y
-    );
-
         match event.kind {
             MouseEventKind::Down(_) => {
+                let canvas_x = ((event.column.saturating_sub(area.x + 1)) as f64 * 100.0)
+                    / (area.width.saturating_sub(2) as f64);
+                let canvas_y = ((event.row.saturating_sub(area.y + 1)) as f64 * 100.0)
+                    / (area.height.saturating_sub(2) as f64);
+
                 log::debug!("Mouse down at canvas coordinates: ({:.2}, {:.2})", canvas_x, canvas_y);
-                self.selected_node = self.find_node_at(canvas_x, canvas_y);
+
+                self.selected_node = self.find_closest_node(canvas_x, canvas_y);
                 self.dragging_node = self.selected_node;
                 self.last_mouse_pos = (event.column, event.row);
 
-                // Log selection result
                 if let Some(id) = self.selected_node {
                     if let Some(node) = self.nodes.get(&id) {
                         log::debug!("Selected node: {}", node.name);
                     }
-                } else {
-                    log::debug!("No node selected");
                 }
             }
             MouseEventKind::Up(_) => {
                 self.dragging_node = None;
             }
             MouseEventKind::Drag(_) => {
-                let dx = (event.column as i32 - self.last_mouse_pos.0 as i32) as f64
-                    * (self.canvas_dimensions.0 / effective_area.width as f64);
-                let dy = (event.row as i32 - self.last_mouse_pos.1 as i32) as f64
-                    * (self.canvas_dimensions.1 / effective_area.height as f64);
+                let dx = (event.column as i32 - self.last_mouse_pos.0 as i32) as f64;
+                let dy = (event.row as i32 - self.last_mouse_pos.1 as i32) as f64;
+
+                // Scale movement by zoom level
+                let world_dx = dx * self.canvas_dimensions.0 / (area.width as f64 * self.zoom);
+                let world_dy = dy * self.canvas_dimensions.1 / (area.height as f64 * self.zoom);
 
                 if let Some(id) = self.dragging_node {
                     if let Some(node) = self.nodes.get_mut(&id) {
-                        node.x = (node.x + dx / self.zoom).clamp(0.0, self.canvas_dimensions.0);
-                        node.y = (node.y + dy / self.zoom).clamp(0.0, self.canvas_dimensions.1);
+                        node.x = (node.x + world_dx).clamp(0.0, self.canvas_dimensions.0);
+                        node.y = (node.y + world_dy).clamp(0.0, self.canvas_dimensions.1);  // Removed the negative
                     }
                 } else {
-                    self.pan_offset.0 += dx / self.zoom;
-                    self.pan_offset.1 += dy / self.zoom;
+                    self.pan_offset.0 -= world_dx;
+                    self.pan_offset.1 -= world_dy;  // Removed the negative
                 }
                 self.last_mouse_pos = (event.column, event.row);
             }
@@ -263,36 +245,55 @@ impl TopologyView {
         }
     }
 
-    fn find_node_at(&self, screen_x: f64, screen_y: f64) -> Option<Uuid> {
-        const HIT_RADIUS: f64 = 5.0;
+    fn find_closest_node(&self, screen_x: f64, screen_y: f64) -> Option<Uuid> {
+        const X_HIT_RADIUS: f64 = 8.0;
+        const Y_SECTIONS: f64 = 4.0; // Divide the view into vertical sections
 
-        let nodes_with_distances: Vec<(&Uuid, &NetworkNode, f64)> = self.nodes.iter()
+        // Get section of the click
+        let click_section = (screen_y / (100.0 / Y_SECTIONS)).floor();
+
+        // Group nodes by their vertical sections
+        let mut nodes_by_section: Vec<(&Uuid, &NetworkNode, u32)> = self.nodes.iter()
             .map(|(id, node)| {
-                let dx = node.x - screen_x;
-                let dy = node.y - screen_y;
-                let distance = (dx * dx + dy * dy).sqrt();
-
-                log::info!(
-                "Node '{}' at ({:.2}, {:.2}), click at ({:.2}, {:.2}), distance: {:.2}",
-                node.name, node.x, node.y, screen_x, screen_y, distance
-            );
-
-                (id, node, distance)
+                let node_y = (node.y - self.pan_offset.1) * self.zoom;
+                let section = (node_y / (100.0 / Y_SECTIONS)).floor();
+                (id, node, section as u32)
             })
             .collect();
 
-        // Sort by distance
-        let mut sorted_nodes = nodes_with_distances;
-        sorted_nodes.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+        // Sort nodes by section (with preference to upper sections)
+        nodes_by_section.sort_by_key(|(_, _, section)| *section);
 
-        // Find closest node within hit radius
-        if let Some((id, node, distance)) = sorted_nodes.first() {
-            if *distance < HIT_RADIUS {
+        // Find nodes in clicked section or the closest upper section
+        for section in 0..=click_section as u32 {
+            let section_nodes: Vec<_> = nodes_by_section.iter()
+                .filter(|(_, _, s)| *s == section)
+                .collect();
+
+            // For nodes in this section, find the closest one horizontally
+            let closest = section_nodes.iter()
+                .min_by(|a, b| {
+                    let a_x = (a.1.x - self.pan_offset.0) * self.zoom;
+                    let b_x = (b.1.x - self.pan_offset.0) * self.zoom;
+                    let a_dist = (a_x - screen_x).abs();
+                    let b_dist = (b_x - screen_x).abs();
+                    a_dist.partial_cmp(&b_dist).unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .filter(|(_, node, _)| {
+                    let node_x = (node.x - self.pan_offset.0) * self.zoom;
+                    (node_x - screen_x).abs() < X_HIT_RADIUS
+                });
+
+            if let Some((&id, _, _)) = closest {
+                let node = self.nodes.get(&id).unwrap();
                 log::debug!(
-                "Selected node: '{}' at ({:.2}, {:.2}), distance: {:.2}",
-                node.name, node.x, node.y, distance
+                "Selected node in section {}: {} at ({:.2}, {:.2})",
+                section,
+                node.name,
+                node.x,
+                node.y
             );
-                return Some(**id);
+                return Some(id);
             }
         }
 
@@ -300,70 +301,58 @@ impl TopologyView {
     }
 
     pub fn render(&self, ctx: &mut Context) {
-        // Add transform function for coordinates
-        let transform_coord = |x: f64, y: f64| -> (f64, f64) {
-            (
-                (x - self.pan_offset.0) * self.zoom,
-                (y - self.pan_offset.1) * self.zoom,
-            )
-        };
-
         // Draw connections first
         for node in self.nodes.values() {
             if let Some(parent_id) = node.parent_id {
                 if let Some(parent) = self.nodes.get(&parent_id) {
-                    let (x1, y1) = transform_coord(node.x, node.y);
-                    let (x2, y2) = transform_coord(parent.x, parent.y);
+                    let (x1, y1) = ((node.x - self.pan_offset.0) * self.zoom,
+                                    (node.y - self.pan_offset.1) * self.zoom);
+                    let (x2, y2) = ((parent.x - self.pan_offset.0) * self.zoom,
+                                    (parent.y - self.pan_offset.1) * self.zoom);
 
                     let color = match node.node_type {
-                        NodeType::Client {
-                            client_type: ClientType::Wireless,
-                        } => Color::Yellow,
-                        NodeType::Client {
-                            client_type: ClientType::Wired,
-                        } => Color::Blue,
+                        NodeType::Client { client_type: ClientType::Wireless } => Color::Yellow,
+                        NodeType::Client { client_type: ClientType::Wired } => Color::Blue,
                         _ => Color::Gray,
                     };
 
-                    ctx.draw(&Line {
-                        x1,
-                        y1,
-                        x2,
-                        y2,
-                        color,
-                    });
+                    ctx.draw(&Line { x1, y1, x2, y2, color });
                 }
             }
         }
 
-        // Draw nodes with transformed coordinates
+        // Draw nodes
         for (id, node) in &self.nodes {
-            let (x, y) = transform_coord(node.x, node.y);
+            let x = (node.x - self.pan_offset.0) * self.zoom;
+            let y = (node.y - self.pan_offset.1) * self.zoom;
             let selected = Some(*id) == self.selected_node;
 
-            let (shape, color) = match &node.node_type {
-                NodeType::Device { device_type, state } => {
-                    let base_color = match state {
-                        DeviceState::Online => Color::Green,
-                        DeviceState::Offline => Color::Red,
-                        _ => Color::Yellow,
-                    };
-
-                    match device_type {
-                        DeviceType::AccessPoint => ("ap", base_color),
-                        DeviceType::Switch => ("switch", base_color),
-                        DeviceType::Gateway => ("gateway", base_color),
-                        DeviceType::Other => ("device", base_color),
-                    }
-                }
-                NodeType::Client { client_type } => match client_type {
-                    ClientType::Wireless => ("wireless", Color::Yellow),
-                    ClientType::Wired => ("wired", Color::Blue),
-                    ClientType::Vpn => ("vpn", Color::Cyan),
-                },
-            };
-
+            let (shape, color) = self.get_node_style(node);
             self.draw_node(ctx, node, shape, color, selected);
+        }
+    }
+
+    fn get_node_style(&self, node: &NetworkNode) -> (&'static str, Color) {
+        match &node.node_type {
+            NodeType::Device { device_type, state } => {
+                let base_color = match state {
+                    DeviceState::Online => Color::Green,
+                    DeviceState::Offline => Color::Red,
+                    _ => Color::Yellow,
+                };
+
+                match device_type {
+                    DeviceType::AccessPoint => ("ap", base_color),
+                    DeviceType::Switch => ("switch", base_color),
+                    DeviceType::Gateway => ("gateway", base_color),
+                    DeviceType::Other => ("device", base_color),
+                }
+            }
+            NodeType::Client { client_type } => match client_type {
+                ClientType::Wireless => ("wireless", Color::Yellow),
+                ClientType::Wired => ("wired", Color::Blue),
+                ClientType::Vpn => ("vpn", Color::Cyan),
+            },
         }
     }
 
