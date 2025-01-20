@@ -3,7 +3,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-use unifi_rs::DeviceState;
+use unifi_rs::device::DeviceState;
 
 pub fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
     let online_devices = app

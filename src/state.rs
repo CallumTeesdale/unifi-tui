@@ -4,7 +4,12 @@ use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::{Duration, Instant};
-use unifi_rs::{ClientOverview, DeviceDetails, DeviceStatistics, Page, UnifiClient};
+use unifi_rs::{UnifiClient};
+use unifi_rs::common::Page;
+use unifi_rs::device::{DeviceDetails, DeviceOverview};
+use unifi_rs::models::client::ClientOverview;
+use unifi_rs::site::SiteOverview;
+use unifi_rs::statistics::DeviceStatistics;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -45,11 +50,11 @@ pub struct DeviceMetrics {
 
 pub struct AppState {
     pub client: UnifiClient,
-    pub sites: Vec<unifi_rs::SiteOverview>,
+    pub sites: Vec<SiteOverview>,
     pub selected_site: Option<SiteContext>,
-    pub devices: Vec<unifi_rs::DeviceOverview>,
+    pub devices: Vec<DeviceOverview>,
     pub clients: Vec<ClientOverview>,
-    pub filtered_devices: Vec<unifi_rs::DeviceOverview>,
+    pub filtered_devices: Vec<DeviceOverview>,
     pub filtered_clients: Vec<ClientOverview>,
     pub device_details: HashMap<Uuid, DeviceDetails>,
     pub device_stats: HashMap<Uuid, DeviceStatistics>,

@@ -6,7 +6,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
-use unifi_rs::DeviceState;
+use unifi_rs::device::DeviceState;
 
 pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()

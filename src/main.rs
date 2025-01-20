@@ -13,6 +13,7 @@ use crossterm::{
 };
 use ratatui::prelude::*;
 use std::{io, time::Duration};
+use crossterm::event::MouseEvent;
 use unifi_rs::UnifiClientBuilder;
 
 use crate::app::{App, Mode};
@@ -79,42 +80,67 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
         terminal.draw(|f| render(&mut app, f))?;
 
         if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                if handle_global_input(&mut app, key).await? {
-                    continue;
-                }
-
-                if app.dialog.is_some() {
-                    handle_dialog_input(&mut app, key).await?;
-                } else if app.search_mode {
-                    handle_search_input(&mut app, key).await?;
-                } else if app.show_help {
-                    if key.code == KeyCode::Esc {
-                        app.show_help = false;
+            match event::read()? {
+                Event::Key(key) => {
+                    if handle_global_input(&mut app, key).await? {
+                        continue;
                     }
-                } else {
-                    match app.mode {
-                        Mode::Overview => match app.current_tab {
-                            0 => ui::sites::handle_sites_input(&mut app, key)?,
-                            1 => ui::devices::handle_device_input(&mut app, key).await?,
-                            2 => ui::clients::handle_client_input(&mut app, key).await?,
-                            3 => {}
-                            4 => {}
-                            _ => {}
-                        },
-                        Mode::DeviceDetail => {
-                            handle_device_detail_input(&mut app, key).await?;
+
+                    if app.dialog.is_some() {
+                        handle_dialog_input(&mut app, key).await?;
+                    } else if app.search_mode {
+                        handle_search_input(&mut app, key).await?;
+                    } else if app.show_help {
+                        if key.code == KeyCode::Esc {
+                            app.show_help = false;
                         }
-                        Mode::ClientDetail => {
-                            handle_client_detail_input(&mut app, key).await?;
-                        }
-                        Mode::Help => {
-                            if key.code == KeyCode::Esc {
-                                app.mode = Mode::Overview;
+                    } else {
+                        match app.mode {
+                            Mode::Overview => match app.current_tab {
+                                0 => ui::sites::handle_sites_input(&mut app, key)?,
+                                1 => ui::devices::handle_device_input(&mut app, key).await?,
+                                2 => ui::clients::handle_client_input(&mut app, key).await?,
+                                3 => ui::topology::handle_topology_input(&mut app, key).await?,
+                                4 => {}
+                                _ => {}
+                            },
+                            Mode::DeviceDetail => {
+                                handle_device_detail_input(&mut app, key).await?;
+                            }
+                            Mode::ClientDetail => {
+                                handle_client_detail_input(&mut app, key).await?;
+                            }
+                            Mode::Help => {
+                                if key.code == KeyCode::Esc {
+                                    app.mode = Mode::Overview;
+                                }
                             }
                         }
                     }
                 }
+                Event::Mouse(event) => {
+                    if app.current_tab == 3 && app.mode == Mode::Overview {
+                        // Get the terminal size and convert to Rect
+                        let size = terminal.size()?;
+                        let area = Rect::new(0, 0, size.width, size.height);
+
+                        // Get the layout areas
+                        let areas = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([
+                                Constraint::Length(3),  // Title
+                                Constraint::Min(0),     // Topology area
+                                Constraint::Length(3),  // Status bar
+                            ])
+                            .split(area);
+
+                        // Only handle mouse events in the topology area
+                        if is_mouse_in_area(event, areas[1]) {
+                            ui::topology::handle_topology_mouse(&mut app, event, areas[1]).await?;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -130,4 +156,8 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
     }
 
     Ok(())
+}
+fn is_mouse_in_area(event: MouseEvent, area: Rect) -> bool {
+    let (col, row) = (event.column, event.row);
+    col >= area.x && col < area.x + area.width && row >= area.y && row < area.y + area.height
 }

@@ -1,7 +1,9 @@
 use crate::state::AppState;
 use crate::ui::widgets::DeviceStatsView;
 use ratatui::widgets::TableState;
+use unifi_rs::models::client::ClientOverview;
 use uuid::Uuid;
+use crate::ui::topology_view::TopologyView;
 
 #[derive(PartialEq, Clone)]
 pub enum Mode {
@@ -55,6 +57,7 @@ pub struct App {
     pub clients_table_state: TableState,
     pub selected_device_id: Option<Uuid>,
     pub selected_client_id: Option<Uuid>,
+    pub topology_view: TopologyView,
     pub should_quit: bool,
 }
 
@@ -78,17 +81,22 @@ impl App {
             selected_device_id: None,
             selected_client_id: None,
             device_stats_view: None,
+            topology_view: TopologyView::new(),
             should_quit: false,
         })
     }
 
     pub async fn refresh(&mut self) -> anyhow::Result<()> {
-        self.state
-            .refresh_data()
-            .await
-            .map_err(|e| anyhow::anyhow!(e.to_string()))
-    }
+        self.state.refresh_data().await?;
+        
+        self.topology_view.update_from_state(
+            &self.state.filtered_devices,
+            &self.state.filtered_clients,
+            &self.state.device_details,
+        );
 
+        Ok(())
+    }
     pub fn sort_devices(&mut self) {
         if matches!(self.device_sort_order, SortOrder::None) {
             return;
@@ -118,12 +126,12 @@ impl App {
 
         self.state.filtered_clients.sort_by(|a, b| {
             let (a_name, a_ip, a_mac) = match a {
-                unifi_rs::ClientOverview::Wired(c) => (
+                ClientOverview::Wired(c) => (
                     c.base.name.as_deref().unwrap_or(""),
                     c.base.ip_address.as_deref().unwrap_or(""),
                     c.mac_address.as_str(),
                 ),
-                unifi_rs::ClientOverview::Wireless(c) => (
+                ClientOverview::Wireless(c) => (
                     c.base.name.as_deref().unwrap_or(""),
                     c.base.ip_address.as_deref().unwrap_or(""),
                     c.mac_address.as_str(),
@@ -132,12 +140,12 @@ impl App {
             };
 
             let (b_name, b_ip, b_mac) = match b {
-                unifi_rs::ClientOverview::Wired(c) => (
+                ClientOverview::Wired(c) => (
                     c.base.name.as_deref().unwrap_or(""),
                     c.base.ip_address.as_deref().unwrap_or(""),
                     c.mac_address.as_str(),
                 ),
-                unifi_rs::ClientOverview::Wireless(c) => (
+                ClientOverview::Wireless(c) => (
                     c.base.name.as_deref().unwrap_or(""),
                     c.base.ip_address.as_deref().unwrap_or(""),
                     c.mac_address.as_str(),

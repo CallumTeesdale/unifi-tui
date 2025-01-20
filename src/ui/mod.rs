@@ -5,6 +5,7 @@ pub mod stats;
 pub mod status_bar;
 pub(crate) mod topology;
 pub mod widgets;
+pub mod topology_view;
 
 use crate::app::{App, DialogType, Mode};
 use crate::ui::topology::render_topology;

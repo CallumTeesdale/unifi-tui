@@ -6,7 +6,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
-use unifi_rs::ClientOverview;
+use unifi_rs::models::client::ClientOverview;
 
 pub fn render_clients(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()

@@ -8,7 +8,8 @@ use ratatui::widgets::{
     Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table, Tabs,
 };
 use ratatui::Frame;
-use unifi_rs::{DeviceState, FrequencyBand, PortState, WlanStandard};
+use unifi_rs::common::{FrequencyBand, PortState, WlanStandard};
+use unifi_rs::device::DeviceState;
 use uuid::Uuid;
 
 pub struct DeviceStatsView {

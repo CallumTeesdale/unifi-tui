@@ -8,6 +8,8 @@ use ratatui::widgets::{
     Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table,
 };
 use ratatui::{symbols, Frame};
+use unifi_rs::device::DeviceState;
+use unifi_rs::models::client::ClientOverview;
 
 pub fn render_stats(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
@@ -46,21 +48,21 @@ fn render_summary(f: &mut Frame, app: &App, area: Rect) {
         .state
         .devices
         .iter()
-        .filter(|d| matches!(d.state, unifi_rs::DeviceState::Online))
+        .filter(|d| matches!(d.state, DeviceState::Online))
         .count();
 
     let wireless_clients = app
         .state
         .clients
         .iter()
-        .filter(|c| matches!(c, unifi_rs::ClientOverview::Wireless(_)))
+        .filter(|c| matches!(c, ClientOverview::Wireless(_)))
         .count();
 
     let wired_clients = app
         .state
         .clients
         .iter()
-        .filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_)))
+        .filter(|c| matches!(c, ClientOverview::Wired(_)))
         .count();
 
     let total_tx = app
@@ -123,8 +125,8 @@ fn render_device_table(f: &mut Frame, app: &App, area: Rect) {
             });
 
             let style = match device.state {
-                unifi_rs::DeviceState::Online => Style::default().fg(Color::Green),
-                unifi_rs::DeviceState::Offline => Style::default().fg(Color::Red),
+                DeviceState::Online => Style::default().fg(Color::Green),
+                DeviceState::Offline => Style::default().fg(Color::Red),
                 _ => Style::default().fg(Color::Yellow),
             };
 
