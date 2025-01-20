@@ -3,12 +3,10 @@ pub mod devices;
 pub mod sites;
 pub mod stats;
 pub mod status_bar;
-pub(crate) mod topology;
-pub mod topology_view;
 pub mod widgets;
+mod topology;
 
 use crate::app::{App, DialogType, Mode};
-use crate::ui::topology::render_topology;
 use crate::ui::{
     clients::render_clients, devices::render_devices, sites::render_sites, stats::render_stats,
     status_bar::render_status_bar,
@@ -19,6 +17,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
 use ratatui::Frame;
+use crate::ui::topology::topology::render_topology;
 
 pub fn render(app: &mut App, f: &mut Frame) {
     let size = f.area();

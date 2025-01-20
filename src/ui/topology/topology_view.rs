@@ -8,43 +8,7 @@ use std::collections::HashMap;
 use unifi_rs::device::{DeviceDetails, DeviceOverview, DeviceState};
 use unifi_rs::models::client::ClientOverview;
 use uuid::Uuid;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum NodeType {
-    Device {
-        device_type: DeviceType,
-        state: DeviceState,
-    },
-    Client {
-        client_type: ClientType,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum DeviceType {
-    AccessPoint,
-    Switch,
-    Gateway,
-    Other,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ClientType {
-    Wireless,
-    Wired,
-    Vpn,
-}
-
-#[derive(Debug, Clone)]
-pub struct NetworkNode {
-    pub id: Uuid,
-    pub name: String,
-    pub node_type: NodeType,
-    pub x: f64,
-    pub y: f64,
-    pub parent_id: Option<Uuid>,
-    pub children: Vec<Uuid>,
-}
+use crate::ui::topology::node::{ClientType, DeviceType, NetworkNode, NodeType};
 
 pub struct TopologyView {
     nodes: HashMap<Uuid, NetworkNode>,
@@ -68,7 +32,10 @@ impl TopologyView {
             canvas_dimensions: (100.0, 100.0),
         }
     }
+}
 
+/// State And Layout 
+impl TopologyView {
     pub fn update_from_state(
         &mut self,
         devices: &[DeviceOverview],
@@ -198,7 +165,10 @@ impl TopologyView {
             }
         }
     }
+}
 
+/// Mouse Interaction
+impl TopologyView {
     pub fn handle_mouse_event(&mut self, event: MouseEvent, area: Rect) {
         match event.kind {
             MouseEventKind::Down(_) => {
@@ -285,7 +255,10 @@ impl TopologyView {
                 *id
             })
     }
+}
 
+/// Rendering
+impl TopologyView {
     pub fn render(&self, ctx: &mut Context) {
         // Draw connections first
         for node in self.nodes.values() {
@@ -315,30 +288,6 @@ impl TopologyView {
 
             let (shape, color) = self.get_node_style(node);
             self.draw_node(ctx, node, shape, color, selected);
-        }
-    }
-
-    fn get_node_style(&self, node: &NetworkNode) -> (&'static str, Color) {
-        match &node.node_type {
-            NodeType::Device { device_type, state } => {
-                let base_color = match state {
-                    DeviceState::Online => Color::Green,
-                    DeviceState::Offline => Color::Red,
-                    _ => Color::Yellow,
-                };
-
-                match device_type {
-                    DeviceType::AccessPoint => ("ap", base_color),
-                    DeviceType::Switch => ("switch", base_color),
-                    DeviceType::Gateway => ("gateway", base_color),
-                    DeviceType::Other => ("device", base_color),
-                }
-            }
-            NodeType::Client { client_type } => match client_type {
-                ClientType::Wireless => ("wireless", Color::Yellow),
-                ClientType::Wired => ("wired", Color::Blue),
-                ClientType::Vpn => ("vpn", Color::Cyan),
-            },
         }
     }
 
@@ -455,6 +404,39 @@ impl TopologyView {
         ctx.print(label_x, label_y, label);
     }
 
+    fn get_node_style(&self, node: &NetworkNode) -> (&'static str, Color) {
+        match &node.node_type {
+            NodeType::Device { device_type, state } => {
+                let base_color = match state {
+                    DeviceState::Online => Color::Green,
+                    DeviceState::Offline => Color::Red,
+                    _ => Color::Yellow,
+                };
+
+                match device_type {
+                    DeviceType::AccessPoint => ("ap", base_color),
+                    DeviceType::Switch => ("switch", base_color),
+                    DeviceType::Gateway => ("gateway", base_color),
+                    DeviceType::Other => ("device", base_color),
+                }
+            }
+            NodeType::Client { client_type } => match client_type {
+                ClientType::Wireless => ("wireless", Color::Yellow),
+                ClientType::Wired => ("wired", Color::Blue),
+                ClientType::Vpn => ("vpn", Color::Cyan),
+            },
+        }
+    }
+}
+
+
+
+
+
+
+
+/// Viewport Control
+impl TopologyView {
     pub fn get_selected_node(&self) -> Option<&NetworkNode> {
         self.selected_node.and_then(|id| self.nodes.get(&id))
     }
