@@ -226,18 +226,18 @@ impl TopologyView {
                 let dx = (event.column as i32 - self.last_mouse_pos.0 as i32) as f64;
                 let dy = (event.row as i32 - self.last_mouse_pos.1 as i32) as f64;
 
-                // Scale movement by zoom level
+                // Scale movement by zoom level and invert y-axis
                 let world_dx = dx * self.canvas_dimensions.0 / (area.width as f64 * self.zoom);
-                let world_dy = dy * self.canvas_dimensions.1 / (area.height as f64 * self.zoom);
+                let world_dy = -dy * self.canvas_dimensions.1 / (area.height as f64 * self.zoom); // Note the negative
 
                 if let Some(id) = self.dragging_node {
                     if let Some(node) = self.nodes.get_mut(&id) {
                         node.x = (node.x + world_dx).clamp(0.0, self.canvas_dimensions.0);
-                        node.y = (node.y + world_dy).clamp(0.0, self.canvas_dimensions.1);  // Removed the negative
+                        node.y = (node.y + world_dy).clamp(0.0, self.canvas_dimensions.1);
                     }
                 } else {
                     self.pan_offset.0 -= world_dx;
-                    self.pan_offset.1 -= world_dy;  // Removed the negative
+                    self.pan_offset.1 -= world_dy;
                 }
                 self.last_mouse_pos = (event.column, event.row);
             }
@@ -245,59 +245,45 @@ impl TopologyView {
         }
     }
 
-    fn find_closest_node(&self, screen_x: f64, screen_y: f64) -> Option<Uuid> {
-        const X_HIT_RADIUS: f64 = 8.0;
-        const Y_SECTIONS: f64 = 4.0; // Divide the view into vertical sections
+    fn find_closest_node(&self, click_x: f64, click_y: f64) -> Option<Uuid> {
+        // Canvas uses normalized coordinates (0-100)
+        // First invert y coordinate to match Canvas rendering
+        let click_y = 100.0 - click_y;
 
-        // Get section of the click
-        let click_section = (screen_y / (100.0 / Y_SECTIONS)).floor();
-
-        // Group nodes by their vertical sections
-        let mut nodes_by_section: Vec<(&Uuid, &NetworkNode, u32)> = self.nodes.iter()
+        // Get nodes with their rendered positions
+        let nodes_with_pos: Vec<_> = self.nodes.iter()
             .map(|(id, node)| {
-                let node_y = (node.y - self.pan_offset.1) * self.zoom;
-                let section = (node_y / (100.0 / Y_SECTIONS)).floor();
-                (id, node, section as u32)
+                let x = (node.x - self.pan_offset.0) * self.zoom;
+                let y = (node.y - self.pan_offset.1) * self.zoom;
+                (id, node, x, y)
             })
             .collect();
 
-        // Sort nodes by section (with preference to upper sections)
-        nodes_by_section.sort_by_key(|(_, _, section)| *section);
-
-        // Find nodes in clicked section or the closest upper section
-        for section in 0..=click_section as u32 {
-            let section_nodes: Vec<_> = nodes_by_section.iter()
-                .filter(|(_, _, s)| *s == section)
-                .collect();
-
-            // For nodes in this section, find the closest one horizontally
-            let closest = section_nodes.iter()
-                .min_by(|a, b| {
-                    let a_x = (a.1.x - self.pan_offset.0) * self.zoom;
-                    let b_x = (b.1.x - self.pan_offset.0) * self.zoom;
-                    let a_dist = (a_x - screen_x).abs();
-                    let b_dist = (b_x - screen_x).abs();
-                    a_dist.partial_cmp(&b_dist).unwrap_or(std::cmp::Ordering::Equal)
-                })
-                .filter(|(_, node, _)| {
-                    let node_x = (node.x - self.pan_offset.0) * self.zoom;
-                    (node_x - screen_x).abs() < X_HIT_RADIUS
-                });
-
-            if let Some((&id, _, _)) = closest {
-                let node = self.nodes.get(&id).unwrap();
-                log::debug!(
-                "Selected node in section {}: {} at ({:.2}, {:.2})",
-                section,
-                node.name,
-                node.x,
-                node.y
-            );
-                return Some(id);
-            }
+        // Log positions for debugging
+        for (_, node, x, y) in &nodes_with_pos {
+            log::debug!(
+            "Node '{}' rendered at ({:.2}, {:.2}), click at ({:.2}, {:.2})",
+            node.name, x, y, click_x, click_y
+        );
         }
 
-        None
+        // Find the closest node within hit distance
+        nodes_with_pos.into_iter()
+            .filter(|(_, _, x, y)| {
+                let dx = x - click_x;
+                let dy = y - click_y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                distance < (8.0 * self.zoom)  // Scale hit radius with zoom
+            })
+            .min_by(|(_, _, x1, y1), (_, _, x2, y2)| {
+                let dist1 = ((x1 - click_x).powi(2) + (y1 - click_y).powi(2)).sqrt();
+                let dist2 = ((x2 - click_x).powi(2) + (y2 - click_y).powi(2)).sqrt();
+                dist1.partial_cmp(&dist2).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(id, node, _, _)| {
+                log::debug!("Selected node: {}", node.name);
+                *id
+            })
     }
 
     pub fn render(&self, ctx: &mut Context) {
