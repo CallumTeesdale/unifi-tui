@@ -4,12 +4,12 @@ use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::{Duration, Instant};
-use unifi_rs::{UnifiClient};
 use unifi_rs::common::Page;
 use unifi_rs::device::{DeviceDetails, DeviceOverview};
 use unifi_rs::models::client::ClientOverview;
 use unifi_rs::site::SiteOverview;
 use unifi_rs::statistics::DeviceStatistics;
+use unifi_rs::UnifiClient;
 use uuid::Uuid;
 
 #[derive(Clone)]

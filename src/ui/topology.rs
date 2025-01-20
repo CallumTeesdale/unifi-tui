@@ -1,9 +1,11 @@
 use crate::app::App;
 use crate::ui::topology_view::NodeType;
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
+use ratatui::prelude::{Modifier, Style};
 use ratatui::widgets::canvas::Canvas;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
+    symbols,
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
@@ -13,9 +15,9 @@ pub fn render_topology(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Min(0),     // Topology view
-            Constraint::Length(3),  // Status bar
+            Constraint::Length(3), // Title
+            Constraint::Min(0),    // Topology view
+            Constraint::Length(3), // Status bar
         ])
         .split(area);
 
@@ -24,19 +26,20 @@ pub fn render_topology(f: &mut Frame, app: &mut App, area: Rect) {
         Some(site) => format!("Network Topology - {}", site.site_name),
         None => "Network Topology - All Sites".to_string(),
     };
-    let header = Paragraph::new(Line::from(title))
-        .block(Block::default().borders(Borders::ALL));
+    let header = Paragraph::new(Line::from(title)).block(Block::default().borders(Borders::ALL));
     f.render_widget(header, chunks[0]);
 
     // Render topology
     let topology_block = Block::default()
         .borders(Borders::ALL)
-        .title("Network Map");
+        .title("Network Map")
+        .style(Style::default().remove_modifier(Modifier::RAPID_BLINK));
 
     let canvas = Canvas::default()
         .block(topology_block)
         .x_bounds([0.0, 100.0])
         .y_bounds([0.0, 100.0])
+        .marker(symbols::Marker::Braille) // Use Braille for better resolution
         .paint(|ctx| {
             app.topology_view.render(ctx);
         });
@@ -67,8 +70,7 @@ pub fn render_topology(f: &mut Frame, app: &mut App, area: Rect) {
         Span::raw("Esc: Back"),
     ])];
 
-    let status_bar = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL));
+    let status_bar = Paragraph::new(help_text).block(Block::default().borders(Borders::ALL));
     f.render_widget(status_bar, chunks[2]);
 }
 
@@ -103,7 +105,11 @@ pub async fn handle_topology_input(app: &mut App, event: KeyEvent) -> anyhow::Re
     Ok(())
 }
 
-pub async fn handle_topology_mouse(app: &mut App, event: MouseEvent, area: Rect) -> anyhow::Result<()> {
+pub async fn handle_topology_mouse(
+    app: &mut App,
+    event: MouseEvent,
+    area: Rect,
+) -> anyhow::Result<()> {
     // Adjust mouse coordinates to account for borders and other UI elements
     app.topology_view.handle_mouse_event(event, area);
     Ok(())

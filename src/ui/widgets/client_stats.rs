@@ -82,12 +82,7 @@ impl<'a> ClientStatsView<'a> {
         (formatted, style)
     }
 
-    fn render_connection_info(
-        &self,
-        f: &mut Frame,
-        area: Rect,
-        client: &WirelessClientOverview,
-    ) {
+    fn render_connection_info(&self, f: &mut Frame, area: Rect, client: &WirelessClientOverview) {
         let (duration, duration_style) = Self::format_duration(client.base.connected_at);
 
         let info_text = vec![
@@ -336,12 +331,7 @@ impl<'a> ClientStatsView<'a> {
         }
     }
 
-    fn render_wired_device_info(
-        &self,
-        f: &mut Frame,
-        area: Rect,
-        client: &WiredClientOverview,
-    ) {
+    fn render_wired_device_info(&self, f: &mut Frame, area: Rect, client: &WiredClientOverview) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([

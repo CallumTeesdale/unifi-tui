@@ -6,14 +6,20 @@ mod ui;
 
 use anyhow::Result;
 use clap::Parser;
+use crossterm::event::MouseEvent;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use directories::ProjectDirs;
+use log::LevelFilter;
 use ratatui::prelude::*;
+use simplelog::{CombinedLogger, ConfigBuilder, WriteLogger};
+use std::fs::File;
+use std::path::PathBuf;
+use std::sync::Once;
 use std::{io, time::Duration};
-use crossterm::event::MouseEvent;
 use unifi_rs::UnifiClientBuilder;
 
 use crate::app::{App, Mode};
@@ -40,9 +46,43 @@ struct Cli {
     insecure: bool,
 }
 
+static INIT: Once = Once::new();
+
+pub fn initialize_logging() -> Result<PathBuf, anyhow::Error> {
+    let mut log_path = None;
+
+    INIT.call_once(|| {
+        if let Some(proj_dirs) = ProjectDirs::from("com", "unifi-tui", "unifi-tui") {
+            let data_dir = proj_dirs.data_dir();
+            std::fs::create_dir_all(data_dir).expect("Failed to create data directory");
+
+            let log_file = data_dir.join("debug.log");
+            log_path = Some(log_file.clone());
+
+            let config = ConfigBuilder::new()
+                .set_time_format_rfc3339()
+                .set_thread_level(LevelFilter::Error)
+                .set_target_level(LevelFilter::Error)
+                .set_location_level(LevelFilter::Debug)
+                .build();
+
+            CombinedLogger::init(vec![WriteLogger::new(
+                LevelFilter::Debug,
+                config,
+                File::create(&log_file).expect("Failed to create log file"),
+            )])
+            .expect("Failed to initialize logger");
+        }
+    });
+
+    log_path.ok_or_else(|| anyhow::anyhow!("Failed to initialize logging"))
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let log_path = initialize_logging()?;
+    log::info!("Starting application. Log file: {:?}", log_path);
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -128,9 +168,9 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                         let areas = Layout::default()
                             .direction(Direction::Vertical)
                             .constraints([
-                                Constraint::Length(3),  // Title
-                                Constraint::Min(0),     // Topology area
-                                Constraint::Length(3),  // Status bar
+                                Constraint::Length(3), // Title
+                                Constraint::Min(0),    // Topology area
+                                Constraint::Length(3), // Status bar
                             ])
                             .split(area);
 

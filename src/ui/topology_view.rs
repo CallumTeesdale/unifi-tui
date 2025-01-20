@@ -63,7 +63,7 @@ impl TopologyView {
             selected_node: None,
             dragging_node: None,
             last_mouse_pos: (0, 0),
-            pan_offset: (0.0, 0.0),  // Add this
+            pan_offset: (0.0, 0.0), // Add this
             zoom: 1.0,
             canvas_dimensions: (100.0, 100.0),
         }
@@ -87,7 +87,9 @@ impl TopologyView {
                 DeviceType::Other
             };
 
-            let parent_id = device_details.get(&device.id).and_then(|d| d.uplink.as_ref().map(|u| u.device_id));
+            let parent_id = device_details
+                .get(&device.id)
+                .and_then(|d| d.uplink.as_ref().map(|u| u.device_id));
 
             self.nodes.insert(
                 device.id,
@@ -155,16 +157,14 @@ impl TopologyView {
     }
 
     pub fn initialize_layout(&mut self) {
-        // Find root nodes (devices without parents or with non-existent parents)
-        let root_nodes: Vec<Uuid> = self
-            .nodes
-            .values()
+        // Find root nodes
+        let root_nodes: Vec<Uuid> = self.nodes.values()
             .filter(|n| n.parent_id.is_none() || !self.nodes.contains_key(&n.parent_id.unwrap()))
             .map(|n| n.id)
             .collect();
 
-        // Position root nodes at the top
-        let root_spacing = self.canvas_dimensions.0 / (root_nodes.len() + 1) as f64;
+        // Position root nodes
+        let root_spacing = 100.0 / (root_nodes.len() + 1) as f64;
         for (i, id) in root_nodes.iter().enumerate() {
             if let Some(node) = self.nodes.get_mut(id) {
                 node.x = root_spacing * (i + 1) as f64;
@@ -207,36 +207,55 @@ impl TopologyView {
             area.height.saturating_sub(2)
         );
 
-        // Convert mouse coordinates to canvas space considering zoom and pan
-        let canvas_x = (((event.column as i32 - effective_area.x as i32) as f64
-            / effective_area.width as f64) * self.canvas_dimensions.0) / self.zoom + self.pan_offset.0;
-        let canvas_y = (((event.row as i32 - effective_area.y as i32) as f64
-            / effective_area.height as f64) * self.canvas_dimensions.1) / self.zoom + self.pan_offset.1;
+        // Convert mouse coordinates to relative position (0.0 to 1.0)
+        let rel_x = (event.column.saturating_sub(effective_area.x) as f64) / (effective_area.width as f64);
+        let rel_y = (event.row.saturating_sub(effective_area.y) as f64) / (effective_area.height as f64);
+
+        // Scale to canvas coordinates
+        let canvas_x = rel_x * 100.0;
+        let canvas_y = rel_y * 100.0;
+
+        log::debug!(
+        "Mouse event - Screen: ({}, {}), Effective: ({}, {}), Canvas: ({:.2}, {:.2})", 
+        event.column, event.row, 
+        event.column.saturating_sub(effective_area.x),
+        event.row.saturating_sub(effective_area.y),
+        canvas_x, canvas_y
+    );
 
         match event.kind {
             MouseEventKind::Down(_) => {
+                log::debug!("Mouse down at canvas coordinates: ({:.2}, {:.2})", canvas_x, canvas_y);
                 self.selected_node = self.find_node_at(canvas_x, canvas_y);
                 self.dragging_node = self.selected_node;
                 self.last_mouse_pos = (event.column, event.row);
+
+                // Log selection result
+                if let Some(id) = self.selected_node {
+                    if let Some(node) = self.nodes.get(&id) {
+                        log::debug!("Selected node: {}", node.name);
+                    }
+                } else {
+                    log::debug!("No node selected");
+                }
             }
             MouseEventKind::Up(_) => {
                 self.dragging_node = None;
             }
             MouseEventKind::Drag(_) => {
                 let dx = (event.column as i32 - self.last_mouse_pos.0 as i32) as f64
-                    * (self.canvas_dimensions.0 / effective_area.width as f64) / self.zoom;
+                    * (self.canvas_dimensions.0 / effective_area.width as f64);
                 let dy = (event.row as i32 - self.last_mouse_pos.1 as i32) as f64
-                    * (self.canvas_dimensions.1 / effective_area.height as f64) / self.zoom;
+                    * (self.canvas_dimensions.1 / effective_area.height as f64);
 
                 if let Some(id) = self.dragging_node {
                     if let Some(node) = self.nodes.get_mut(&id) {
-                        node.x = (node.x + dx).clamp(5.0, self.canvas_dimensions.0 - 5.0);
-                        node.y = (node.y + dy).clamp(5.0, self.canvas_dimensions.1 - 5.0);
+                        node.x = (node.x + dx / self.zoom).clamp(0.0, self.canvas_dimensions.0);
+                        node.y = (node.y + dy / self.zoom).clamp(0.0, self.canvas_dimensions.1);
                     }
                 } else {
-                    // Pan the view
-                    self.pan_offset.0 -= dx;
-                    self.pan_offset.1 -= dy;
+                    self.pan_offset.0 += dx / self.zoom;
+                    self.pan_offset.1 += dy / self.zoom;
                 }
                 self.last_mouse_pos = (event.column, event.row);
             }
@@ -244,25 +263,40 @@ impl TopologyView {
         }
     }
 
-    fn find_node_at(&self, x: f64, y: f64) -> Option<Uuid> {
-        const HIT_RADIUS: f64 = 2.0;  // Make this smaller for more precise detection
+    fn find_node_at(&self, screen_x: f64, screen_y: f64) -> Option<Uuid> {
+        const HIT_RADIUS: f64 = 5.0;
 
-        self.nodes.iter()
+        let nodes_with_distances: Vec<(&Uuid, &NetworkNode, f64)> = self.nodes.iter()
             .map(|(id, node)| {
-                // Transform node coordinates using the same transform as render
-                let node_x = (node.x - self.pan_offset.0) * self.zoom;
-                let node_y = (node.y - self.pan_offset.1) * self.zoom;
-
-                let dx = node_x - x;
-                let dy = node_y - y;
+                let dx = node.x - screen_x;
+                let dy = node.y - screen_y;
                 let distance = (dx * dx + dy * dy).sqrt();
 
-                (id, distance)
+                log::info!(
+                "Node '{}' at ({:.2}, {:.2}), click at ({:.2}, {:.2}), distance: {:.2}",
+                node.name, node.x, node.y, screen_x, screen_y, distance
+            );
+
+                (id, node, distance)
             })
-            // Sort by distance so we get the closest node
-            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-            .filter(|(_id, distance)| *distance < HIT_RADIUS)
-            .map(|(id, _)| *id)
+            .collect();
+
+        // Sort by distance
+        let mut sorted_nodes = nodes_with_distances;
+        sorted_nodes.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Find closest node within hit radius
+        if let Some((id, node, distance)) = sorted_nodes.first() {
+            if *distance < HIT_RADIUS {
+                log::debug!(
+                "Selected node: '{}' at ({:.2}, {:.2}), distance: {:.2}",
+                node.name, node.x, node.y, distance
+            );
+                return Some(**id);
+            }
+        }
+
+        None
     }
 
     pub fn render(&self, ctx: &mut Context) {
@@ -270,7 +304,7 @@ impl TopologyView {
         let transform_coord = |x: f64, y: f64| -> (f64, f64) {
             (
                 (x - self.pan_offset.0) * self.zoom,
-                (y - self.pan_offset.1) * self.zoom
+                (y - self.pan_offset.1) * self.zoom,
             )
         };
 
@@ -282,12 +316,22 @@ impl TopologyView {
                     let (x2, y2) = transform_coord(parent.x, parent.y);
 
                     let color = match node.node_type {
-                        NodeType::Client { client_type: ClientType::Wireless } => Color::Yellow,
-                        NodeType::Client { client_type: ClientType::Wired } => Color::Blue,
+                        NodeType::Client {
+                            client_type: ClientType::Wireless,
+                        } => Color::Yellow,
+                        NodeType::Client {
+                            client_type: ClientType::Wired,
+                        } => Color::Blue,
                         _ => Color::Gray,
                     };
 
-                    ctx.draw(&Line { x1, y1, x2, y2, color });
+                    ctx.draw(&Line {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        color,
+                    });
                 }
             }
         }
@@ -323,11 +367,18 @@ impl TopologyView {
         }
     }
 
-    fn draw_node(&self, ctx: &mut Context, node: &NetworkNode, shape: &str, color: Color, selected: bool) {
+    fn draw_node(
+        &self,
+        ctx: &mut Context,
+        node: &NetworkNode,
+        shape: &str,
+        color: Color,
+        selected: bool,
+    ) {
         let x = (node.x - self.pan_offset.0) * self.zoom;
         let y = (node.y - self.pan_offset.1) * self.zoom;
         let base_size = if selected { 3.0 } else { 2.0 };
-        let size = base_size * self.zoom;  // Scale size with zoom
+        let size = base_size * self.zoom; // Scale size with zoom
 
         match shape {
             "ap" => {
@@ -339,7 +390,10 @@ impl TopologyView {
                             (x + angle.cos() * radius, y + angle.sin() * radius)
                         })
                         .collect();
-                    ctx.draw(&Points { coords: &points, color });
+                    ctx.draw(&Points {
+                        coords: &points,
+                        color,
+                    });
                 }
             }
             "switch" => {
@@ -372,7 +426,10 @@ impl TopologyView {
                         (x + angle.cos() * size * 0.8, y + angle.sin() * size * 0.8)
                     })
                     .collect();
-                ctx.draw(&Points { coords: &points, color });
+                ctx.draw(&Points {
+                    coords: &points,
+                    color,
+                });
             }
             "wired" => {
                 // Draw wired client as a small square
@@ -400,7 +457,10 @@ impl TopologyView {
                         (x + angle.cos() * size, y + angle.sin() * size)
                     })
                     .collect();
-                ctx.draw(&Points { coords: &points, color });
+                ctx.draw(&Points {
+                    coords: &points,
+                    color,
+                });
             }
         }
 
@@ -409,7 +469,7 @@ impl TopologyView {
             // Draw a small dot in the center instead of the large highlight ring
             ctx.draw(&Points {
                 coords: &[(x, y)],
-                color: Color::White
+                color: Color::White,
             });
         }
 
@@ -454,5 +514,4 @@ impl TopologyView {
         let center_y = (min_y + max_y) / 2.0;
         self.pan_offset = (center_x - 50.0, center_y - 50.0);
     }
-    
 }

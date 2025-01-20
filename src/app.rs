@@ -1,9 +1,9 @@
 use crate::state::AppState;
+use crate::ui::topology_view::TopologyView;
 use crate::ui::widgets::DeviceStatsView;
 use ratatui::widgets::TableState;
 use unifi_rs::models::client::ClientOverview;
 use uuid::Uuid;
-use crate::ui::topology_view::TopologyView;
 
 #[derive(PartialEq, Clone)]
 pub enum Mode {
@@ -88,7 +88,7 @@ impl App {
 
     pub async fn refresh(&mut self) -> anyhow::Result<()> {
         self.state.refresh_data().await?;
-        
+
         self.topology_view.update_from_state(
             &self.state.filtered_devices,
             &self.state.filtered_clients,
