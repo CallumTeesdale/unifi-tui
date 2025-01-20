@@ -51,7 +51,7 @@ pub struct TopologyView {
     selected_node: Option<Uuid>,
     dragging_node: Option<Uuid>,
     last_mouse_pos: (u16, u16),
-    viewport: (f64, f64), // (x_offset, y_offset)
+    pan_offset: (f64, f64),
     zoom: f64,
     canvas_dimensions: (f64, f64),
 }
@@ -63,7 +63,7 @@ impl TopologyView {
             selected_node: None,
             dragging_node: None,
             last_mouse_pos: (0, 0),
-            viewport: (0.0, 0.0),
+            pan_offset: (0.0, 0.0),  // Add this
             zoom: 1.0,
             canvas_dimensions: (100.0, 100.0),
         }
@@ -200,7 +200,6 @@ impl TopologyView {
     }
 
     pub fn handle_mouse_event(&mut self, event: MouseEvent, area: Rect) {
-        // Account for borders and title in the area calculation
         let effective_area = Rect::new(
             area.x + 1,
             area.y + 1,
@@ -208,15 +207,14 @@ impl TopologyView {
             area.height.saturating_sub(2)
         );
 
-        // Convert mouse coordinates to canvas space, accounting for the border offset
-        let canvas_x = ((event.column as i32 - effective_area.x as i32) as f64
-            / effective_area.width as f64) * self.canvas_dimensions.0;
-        let canvas_y = ((event.row as i32 - effective_area.y as i32) as f64
-            / effective_area.height as f64) * self.canvas_dimensions.1;
+        // Convert mouse coordinates to canvas space considering zoom and pan
+        let canvas_x = (((event.column as i32 - effective_area.x as i32) as f64
+            / effective_area.width as f64) * self.canvas_dimensions.0) / self.zoom + self.pan_offset.0;
+        let canvas_y = (((event.row as i32 - effective_area.y as i32) as f64
+            / effective_area.height as f64) * self.canvas_dimensions.1) / self.zoom + self.pan_offset.1;
 
         match event.kind {
             MouseEventKind::Down(_) => {
-                // Find clicked node with increased hit area
                 self.selected_node = self.find_node_at(canvas_x, canvas_y);
                 self.dragging_node = self.selected_node;
                 self.last_mouse_pos = (event.column, event.row);
@@ -225,24 +223,20 @@ impl TopologyView {
                 self.dragging_node = None;
             }
             MouseEventKind::Drag(_) => {
-                if let Some(id) = self.dragging_node {
-                    let dx = (event.column as i32 - self.last_mouse_pos.0 as i32) as f64
-                        * (self.canvas_dimensions.0 / effective_area.width as f64);
-                    let dy = (event.row as i32 - self.last_mouse_pos.1 as i32) as f64
-                        * (self.canvas_dimensions.1 / effective_area.height as f64);
+                let dx = (event.column as i32 - self.last_mouse_pos.0 as i32) as f64
+                    * (self.canvas_dimensions.0 / effective_area.width as f64) / self.zoom;
+                let dy = (event.row as i32 - self.last_mouse_pos.1 as i32) as f64
+                    * (self.canvas_dimensions.1 / effective_area.height as f64) / self.zoom;
 
+                if let Some(id) = self.dragging_node {
                     if let Some(node) = self.nodes.get_mut(&id) {
                         node.x = (node.x + dx).clamp(5.0, self.canvas_dimensions.0 - 5.0);
                         node.y = (node.y + dy).clamp(5.0, self.canvas_dimensions.1 - 5.0);
-
-                        // Ensure the label stays visible
-                        if node.x < node.name.len() as f64 * 0.4 {
-                            node.x = node.name.len() as f64 * 0.4;
-                        }
-                        if node.x > self.canvas_dimensions.0 - node.name.len() as f64 * 0.4 {
-                            node.x = self.canvas_dimensions.0 - node.name.len() as f64 * 0.4;
-                        }
                     }
+                } else {
+                    // Pan the view
+                    self.pan_offset.0 -= dx;
+                    self.pan_offset.1 -= dy;
                 }
                 self.last_mouse_pos = (event.column, event.row);
             }
@@ -251,53 +245,58 @@ impl TopologyView {
     }
 
     fn find_node_at(&self, x: f64, y: f64) -> Option<Uuid> {
-        // Larger hit area for node selection
-        const HIT_RADIUS: f64 = 5.0;
+        const HIT_RADIUS: f64 = 2.0;  // Make this smaller for more precise detection
 
-        self.nodes.iter().find_map(|(id, node)| {
-            let dx = node.x - x;
-            let dy = node.y - y;
-            let distance = (dx * dx + dy * dy).sqrt();
+        self.nodes.iter()
+            .map(|(id, node)| {
+                // Transform node coordinates using the same transform as render
+                let node_x = (node.x - self.pan_offset.0) * self.zoom;
+                let node_y = (node.y - self.pan_offset.1) * self.zoom;
 
-            // Also check if click is within the label area
-            let label_width = node.name.len() as f64 * 0.8;
-            let label_hit = x >= (node.x - label_width/2.0)
-                && x <= (node.x + label_width/2.0)
-                && y >= (node.y + 2.0)
-                && y <= (node.y + 4.0);
+                let dx = node_x - x;
+                let dy = node_y - y;
+                let distance = (dx * dx + dy * dy).sqrt();
 
-            if distance < HIT_RADIUS || label_hit {
-                Some(*id)
-            } else {
-                None
-            }
-        })
+                (id, distance)
+            })
+            // Sort by distance so we get the closest node
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .filter(|(_id, distance)| *distance < HIT_RADIUS)
+            .map(|(id, _)| *id)
     }
 
     pub fn render(&self, ctx: &mut Context) {
+        // Add transform function for coordinates
+        let transform_coord = |x: f64, y: f64| -> (f64, f64) {
+            (
+                (x - self.pan_offset.0) * self.zoom,
+                (y - self.pan_offset.1) * self.zoom
+            )
+        };
+
         // Draw connections first
         for node in self.nodes.values() {
             if let Some(parent_id) = node.parent_id {
                 if let Some(parent) = self.nodes.get(&parent_id) {
+                    let (x1, y1) = transform_coord(node.x, node.y);
+                    let (x2, y2) = transform_coord(parent.x, parent.y);
+
                     let color = match node.node_type {
                         NodeType::Client { client_type: ClientType::Wireless } => Color::Yellow,
                         NodeType::Client { client_type: ClientType::Wired } => Color::Blue,
                         _ => Color::Gray,
                     };
 
-                    ctx.draw(&Line {
-                        x1: node.x,
-                        y1: node.y,
-                        x2: parent.x,
-                        y2: parent.y,
-                        color,
-                    });
+                    ctx.draw(&Line { x1, y1, x2, y2, color });
                 }
             }
         }
 
-        // Draw nodes
+        // Draw nodes with transformed coordinates
         for (id, node) in &self.nodes {
+            let (x, y) = transform_coord(node.x, node.y);
+            let selected = Some(*id) == self.selected_node;
+
             let (shape, color) = match &node.node_type {
                 NodeType::Device { device_type, state } => {
                     let base_color = match state {
@@ -320,20 +319,20 @@ impl TopologyView {
                 },
             };
 
-            self.draw_node(ctx, node, shape, color, Some(*id) == self.selected_node);
+            self.draw_node(ctx, node, shape, color, selected);
         }
     }
 
     fn draw_node(&self, ctx: &mut Context, node: &NetworkNode, shape: &str, color: Color, selected: bool) {
-        let x = node.x;
-        let y = node.y;
-        let size = if selected { 3.0 } else { 2.0 };
+        let x = (node.x - self.pan_offset.0) * self.zoom;
+        let y = (node.y - self.pan_offset.1) * self.zoom;
+        let base_size = if selected { 3.0 } else { 2.0 };
+        let size = base_size * self.zoom;  // Scale size with zoom
 
         match shape {
             "ap" => {
-                // Draw AP as a circle with waves
                 for i in 0..3 {
-                    let radius = size - (i as f64 * 0.5);
+                    let radius = size - (i as f64 * 0.5 * self.zoom);
                     let points: Vec<(f64, f64)> = (0..16)
                         .map(|j| {
                             let angle = (j as f64) * std::f64::consts::PI / 8.0;
@@ -407,19 +406,17 @@ impl TopologyView {
 
         // Draw selection indicator if selected
         if selected {
-            let points: Vec<(f64, f64)> = (0..16)
-                .map(|i| {
-                    let angle = (i as f64) * std::f64::consts::PI / 8.0;
-                    (x + angle.cos() * (size * 1.5), y + angle.sin() * (size * 1.5))
-                })
-                .collect();
-            ctx.draw(&Points { coords: &points, color: Color::White });
+            // Draw a small dot in the center instead of the large highlight ring
+            ctx.draw(&Points {
+                coords: &[(x, y)],
+                color: Color::White
+            });
         }
 
         // Draw node label
         let label_y = y + size * 2.0;
         let label = node.name.clone();
-        let label_x = x - (label.len() as f64 * 0.4); // Adjusted multiplier to better center labels
+        let label_x = x - (label.len() as f64 * 0.4 * self.zoom);
         ctx.print(label_x, label_y, label);
     }
 
@@ -432,6 +429,30 @@ impl TopologyView {
     }
 
     pub fn zoom_out(&mut self) {
-        self.zoom = (self.zoom * 0.8).max(0.2);
+        self.zoom = (self.zoom / 1.2).max(0.2);
     }
+    pub fn reset_view(&mut self) {
+        self.zoom = 1.0;
+        self.pan_offset = (0.0, 0.0);
+        self.initialize_layout();
+
+        // Calculate bounds to center the view
+        let mut min_x = f64::MAX;
+        let mut min_y = f64::MAX;
+        let mut max_x = f64::MIN;
+        let mut max_y = f64::MIN;
+
+        for node in self.nodes.values() {
+            min_x = min_x.min(node.x);
+            min_y = min_y.min(node.y);
+            max_x = max_x.max(node.x);
+            max_y = max_y.max(node.y);
+        }
+
+        // Center the view
+        let center_x = (min_x + max_x) / 2.0;
+        let center_y = (min_y + max_y) / 2.0;
+        self.pan_offset = (center_x - 50.0, center_y - 50.0);
+    }
+    
 }

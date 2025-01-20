@@ -81,7 +81,7 @@ pub async fn handle_topology_input(app: &mut App, event: KeyEvent) -> anyhow::Re
             app.topology_view.zoom_out();
         }
         KeyCode::Char('r') => {
-            app.topology_view.initialize_layout();
+            app.topology_view.reset_view();
         }
         KeyCode::Enter => {
             if let Some(node) = app.topology_view.get_selected_node() {
