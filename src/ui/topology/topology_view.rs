@@ -1,3 +1,4 @@
+use crate::ui::topology::node::{ClientType, DeviceType, NetworkNode, NodeType};
 use crossterm::event::{MouseEvent, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -8,7 +9,6 @@ use std::collections::HashMap;
 use unifi_rs::device::{DeviceDetails, DeviceOverview, DeviceState};
 use unifi_rs::models::client::ClientOverview;
 use uuid::Uuid;
-use crate::ui::topology::node::{ClientType, DeviceType, NetworkNode, NodeType};
 
 pub struct TopologyView {
     nodes: HashMap<Uuid, NetworkNode>,
@@ -34,7 +34,7 @@ impl TopologyView {
     }
 }
 
-/// State And Layout 
+/// State And Layout
 impl TopologyView {
     pub fn update_from_state(
         &mut self,
@@ -125,7 +125,9 @@ impl TopologyView {
 
     pub fn initialize_layout(&mut self) {
         // Find root nodes
-        let root_nodes: Vec<Uuid> = self.nodes.values()
+        let root_nodes: Vec<Uuid> = self
+            .nodes
+            .values()
             .filter(|n| n.parent_id.is_none() || !self.nodes.contains_key(&n.parent_id.unwrap()))
             .map(|n| n.id)
             .collect();
@@ -177,7 +179,11 @@ impl TopologyView {
                 let canvas_y = ((event.row.saturating_sub(area.y + 1)) as f64 * 100.0)
                     / (area.height.saturating_sub(2) as f64);
 
-                log::debug!("Mouse down at canvas coordinates: ({:.2}, {:.2})", canvas_x, canvas_y);
+                log::debug!(
+                    "Mouse down at canvas coordinates: ({:.2}, {:.2})",
+                    canvas_x,
+                    canvas_y
+                );
 
                 self.selected_node = self.find_closest_node(canvas_x, canvas_y);
                 self.dragging_node = self.selected_node;
@@ -221,7 +227,9 @@ impl TopologyView {
         let click_y = 100.0 - click_y;
 
         // Get nodes with their rendered positions
-        let nodes_with_pos: Vec<_> = self.nodes.iter()
+        let nodes_with_pos: Vec<_> = self
+            .nodes
+            .iter()
             .map(|(id, node)| {
                 let x = (node.x - self.pan_offset.0) * self.zoom;
                 let y = (node.y - self.pan_offset.1) * self.zoom;
@@ -232,23 +240,30 @@ impl TopologyView {
         // Log positions for debugging
         for (_, node, x, y) in &nodes_with_pos {
             log::debug!(
-            "Node '{}' rendered at ({:.2}, {:.2}), click at ({:.2}, {:.2})",
-            node.name, x, y, click_x, click_y
-        );
+                "Node '{}' rendered at ({:.2}, {:.2}), click at ({:.2}, {:.2})",
+                node.name,
+                x,
+                y,
+                click_x,
+                click_y
+            );
         }
 
         // Find the closest node within hit distance
-        nodes_with_pos.into_iter()
+        nodes_with_pos
+            .into_iter()
             .filter(|(_, _, x, y)| {
                 let dx = x - click_x;
                 let dy = y - click_y;
                 let distance = (dx * dx + dy * dy).sqrt();
-                distance < (8.0 * self.zoom)  // Scale hit radius with zoom
+                distance < (8.0 * self.zoom) // Scale hit radius with zoom
             })
             .min_by(|(_, _, x1, y1), (_, _, x2, y2)| {
                 let dist1 = ((x1 - click_x).powi(2) + (y1 - click_y).powi(2)).sqrt();
                 let dist2 = ((x2 - click_x).powi(2) + (y2 - click_y).powi(2)).sqrt();
-                dist1.partial_cmp(&dist2).unwrap_or(std::cmp::Ordering::Equal)
+                dist1
+                    .partial_cmp(&dist2)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|(id, node, _, _)| {
                 log::debug!("Selected node: {}", node.name);
@@ -264,18 +279,32 @@ impl TopologyView {
         for node in self.nodes.values() {
             if let Some(parent_id) = node.parent_id {
                 if let Some(parent) = self.nodes.get(&parent_id) {
-                    let (x1, y1) = ((node.x - self.pan_offset.0) * self.zoom,
-                                    (node.y - self.pan_offset.1) * self.zoom);
-                    let (x2, y2) = ((parent.x - self.pan_offset.0) * self.zoom,
-                                    (parent.y - self.pan_offset.1) * self.zoom);
+                    let (x1, y1) = (
+                        (node.x - self.pan_offset.0) * self.zoom,
+                        (node.y - self.pan_offset.1) * self.zoom,
+                    );
+                    let (x2, y2) = (
+                        (parent.x - self.pan_offset.0) * self.zoom,
+                        (parent.y - self.pan_offset.1) * self.zoom,
+                    );
 
                     let color = match node.node_type {
-                        NodeType::Client { client_type: ClientType::Wireless } => Color::Yellow,
-                        NodeType::Client { client_type: ClientType::Wired } => Color::Blue,
+                        NodeType::Client {
+                            client_type: ClientType::Wireless,
+                        } => Color::Yellow,
+                        NodeType::Client {
+                            client_type: ClientType::Wired,
+                        } => Color::Blue,
                         _ => Color::Gray,
                     };
 
-                    ctx.draw(&Line { x1, y1, x2, y2, color });
+                    ctx.draw(&Line {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        color,
+                    });
                 }
             }
         }
@@ -428,12 +457,6 @@ impl TopologyView {
         }
     }
 }
-
-
-
-
-
-
 
 /// Viewport Control
 impl TopologyView {

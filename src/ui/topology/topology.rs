@@ -1,4 +1,5 @@
 use crate::app::App;
+use crate::ui::topology::node::NodeType;
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
 use ratatui::prelude::{Modifier, Style};
 use ratatui::widgets::canvas::Canvas;
@@ -9,7 +10,6 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
-use crate::ui::topology::node::NodeType;
 
 pub fn render_topology(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
@@ -20,14 +20,13 @@ pub fn render_topology(f: &mut Frame, app: &mut App, area: Rect) {
             Constraint::Length(3), // Status bar
         ])
         .split(area);
-    
+
     let title = match &app.state.selected_site {
         Some(site) => format!("Network Topology - {}", site.site_name),
         None => "Network Topology - All Sites".to_string(),
     };
     let header = Paragraph::new(Line::from(title)).block(Block::default().borders(Borders::ALL));
     f.render_widget(header, chunks[0]);
-
 
     let topology_block = Block::default()
         .borders(Borders::ALL)
@@ -38,13 +37,13 @@ pub fn render_topology(f: &mut Frame, app: &mut App, area: Rect) {
         .block(topology_block)
         .x_bounds([0.0, 100.0])
         .y_bounds([0.0, 100.0])
-        .marker(symbols::Marker::Braille) 
+        .marker(symbols::Marker::Braille)
         .paint(|ctx| {
             app.topology_view.render(ctx);
         });
 
     f.render_widget(canvas, chunks[1]);
-    
+
     let selected_info = if let Some(node) = app.topology_view.get_selected_node() {
         match &node.node_type {
             NodeType::Device { device_type, state } => {

@@ -19,8 +19,13 @@ pub enum ClientType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeType {
-    Device { device_type: DeviceType, state: DeviceState },
-    Client { client_type: ClientType },
+    Device {
+        device_type: DeviceType,
+        state: DeviceState,
+    },
+    Client {
+        client_type: ClientType,
+    },
 }
 
 #[derive(Debug, Clone)]
