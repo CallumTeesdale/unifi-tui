@@ -174,11 +174,11 @@ impl TopologyView {
     pub fn handle_mouse_event(&mut self, event: MouseEvent, area: Rect) {
         match event.kind {
             MouseEventKind::Down(_) => {
-                let canvas_x = ((event.column.saturating_sub(area.x + 1)) as f64 * 100.0)
+                let canvas_x = (event.column.saturating_sub(area.x + 1) as f64 * 100.0)
                     / (area.width.saturating_sub(2) as f64);
-                let canvas_y = ((event.row.saturating_sub(area.y + 1)) as f64 * 100.0)
+                let canvas_y = (event.row.saturating_sub(area.y + 1) as f64 * 100.0)
                     / (area.height.saturating_sub(2) as f64);
-                
+
                 self.selected_node = self.find_closest_node(canvas_x, canvas_y);
                 self.dragging_node = self.selected_node;
                 self.last_mouse_pos = (event.column, event.row);
@@ -240,9 +240,7 @@ impl TopologyView {
                     .partial_cmp(&dist2)
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
-            .map(|(id, _node, _, _)| {
-                *id
-            })
+            .map(|(id, _node, _, _)| *id)
     }
 }
 
@@ -285,8 +283,6 @@ impl TopologyView {
 
         // Draw nodes on top of connections
         for (id, node) in &self.nodes {
-            let x = (node.x - self.pan_offset.0) * self.zoom;
-            let y = (node.y - self.pan_offset.1) * self.zoom;
             let selected = Some(*id) == self.selected_node;
 
             let (shape, color) = self.get_node_style(node);
@@ -387,7 +383,7 @@ impl TopologyView {
             }
         }
 
-        // Selected we found a hit 
+        // Selected we found a hit
         if selected {
             // Inidcate to the user that the node is selected
             ctx.draw(&Points {
@@ -445,7 +441,7 @@ impl TopologyView {
         self.zoom = 1.0;
         self.pan_offset = (0.0, 0.0);
         self.initialize_layout();
-        
+
         let mut min_x = f64::MAX;
         let mut min_y = f64::MAX;
         let mut max_x = f64::MIN;

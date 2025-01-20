@@ -1,9 +1,9 @@
 use crate::state::AppState;
+use crate::ui::topology::topology_view::TopologyView;
 use crate::ui::widgets::DeviceStatsView;
 use ratatui::widgets::TableState;
 use unifi_rs::models::client::ClientOverview;
 use uuid::Uuid;
-use crate::ui::topology::topology_view::TopologyView;
 
 #[derive(PartialEq, Clone)]
 pub enum Mode {
