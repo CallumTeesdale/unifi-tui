@@ -27,7 +27,7 @@ impl TopologyView {
             selected_node: None,
             dragging_node: None,
             last_mouse_pos: (0, 0),
-            pan_offset: (0.0, 0.0), // Add this
+            pan_offset: (0.0, 0.0),
             zoom: 1.0,
             canvas_dimensions: (100.0, 100.0),
         }
@@ -44,7 +44,7 @@ impl TopologyView {
     ) {
         self.nodes.clear();
 
-        // Add device nodes
+        // Add all device nodes to the network map
         for device in devices {
             let device_type = if device.features.contains(&"accessPoint".to_string()) {
                 DeviceType::AccessPoint
@@ -75,7 +75,7 @@ impl TopologyView {
             );
         }
 
-        // Add client nodes and connect to devices
+        // Add all our client nodes to the network map
         for client in clients {
             let (id, name, client_type, parent_id) = match client {
                 ClientOverview::Wireless(c) => (
@@ -107,7 +107,7 @@ impl TopologyView {
             );
         }
 
-        // Update children lists
+        // Update the layout children for each node
         let connections: Vec<(Uuid, Uuid)> = self
             .nodes
             .values()
@@ -124,7 +124,7 @@ impl TopologyView {
     }
 
     pub fn initialize_layout(&mut self) {
-        // Find root nodes
+        // Find  root nodes (nodes without a parent or with a parent that doesn't exist) like our gateway device
         let root_nodes: Vec<Uuid> = self
             .nodes
             .values()
@@ -132,7 +132,7 @@ impl TopologyView {
             .map(|n| n.id)
             .collect();
 
-        // Position root nodes
+        // Place root nodes at the top of the canvas to mimic unifi tree layout
         let root_spacing = 100.0 / (root_nodes.len() + 1) as f64;
         for (i, id) in root_nodes.iter().enumerate() {
             if let Some(node) = self.nodes.get_mut(id) {
@@ -141,7 +141,7 @@ impl TopologyView {
             }
         }
 
-        // Layout children recursively
+        // iter through root nodes and layout their children
         for root_id in root_nodes {
             self.layout_children(root_id, 1);
         }
@@ -178,22 +178,10 @@ impl TopologyView {
                     / (area.width.saturating_sub(2) as f64);
                 let canvas_y = ((event.row.saturating_sub(area.y + 1)) as f64 * 100.0)
                     / (area.height.saturating_sub(2) as f64);
-
-                log::debug!(
-                    "Mouse down at canvas coordinates: ({:.2}, {:.2})",
-                    canvas_x,
-                    canvas_y
-                );
-
+                
                 self.selected_node = self.find_closest_node(canvas_x, canvas_y);
                 self.dragging_node = self.selected_node;
                 self.last_mouse_pos = (event.column, event.row);
-
-                if let Some(id) = self.selected_node {
-                    if let Some(node) = self.nodes.get(&id) {
-                        log::debug!("Selected node: {}", node.name);
-                    }
-                }
             }
             MouseEventKind::Up(_) => {
                 self.dragging_node = None;
@@ -202,9 +190,9 @@ impl TopologyView {
                 let dx = (event.column as i32 - self.last_mouse_pos.0 as i32) as f64;
                 let dy = (event.row as i32 - self.last_mouse_pos.1 as i32) as f64;
 
-                // Scale movement by zoom level and invert y-axis
+                // ivert y to make it feel more natural and scale with zoom
                 let world_dx = dx * self.canvas_dimensions.0 / (area.width as f64 * self.zoom);
-                let world_dy = -dy * self.canvas_dimensions.1 / (area.height as f64 * self.zoom); // Note the negative
+                let world_dy = -dy * self.canvas_dimensions.1 / (area.height as f64 * self.zoom);
 
                 if let Some(id) = self.dragging_node {
                     if let Some(node) = self.nodes.get_mut(&id) {
@@ -222,11 +210,10 @@ impl TopologyView {
     }
 
     fn find_closest_node(&self, click_x: f64, click_y: f64) -> Option<Uuid> {
-        // Canvas uses normalized coordinates (0-100)
-        // First invert y coordinate to match Canvas rendering
+        // Canvas uses normalized coordinates (0-100) with origin at top-left
         let click_y = 100.0 - click_y;
 
-        // Get nodes with their rendered positions
+        // Calculate node positions with current zoom and pan offset since we may be zoomed in or panned
         let nodes_with_pos: Vec<_> = self
             .nodes
             .iter()
@@ -237,19 +224,7 @@ impl TopologyView {
             })
             .collect();
 
-        // Log positions for debugging
-        for (_, node, x, y) in &nodes_with_pos {
-            log::debug!(
-                "Node '{}' rendered at ({:.2}, {:.2}), click at ({:.2}, {:.2})",
-                node.name,
-                x,
-                y,
-                click_x,
-                click_y
-            );
-        }
-
-        // Find the closest node within hit distance
+        // if we ckick on a node, return the id by finding the closest node to the click
         nodes_with_pos
             .into_iter()
             .filter(|(_, _, x, y)| {
@@ -265,8 +240,7 @@ impl TopologyView {
                     .partial_cmp(&dist2)
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
-            .map(|(id, node, _, _)| {
-                log::debug!("Selected node: {}", node.name);
+            .map(|(id, _node, _, _)| {
                 *id
             })
     }
@@ -275,7 +249,7 @@ impl TopologyView {
 /// Rendering
 impl TopologyView {
     pub fn render(&self, ctx: &mut Context) {
-        // Draw connections first
+        // We start by drawing the connections between nodes first since tree layout is top-down
         for node in self.nodes.values() {
             if let Some(parent_id) = node.parent_id {
                 if let Some(parent) = self.nodes.get(&parent_id) {
@@ -309,7 +283,7 @@ impl TopologyView {
             }
         }
 
-        // Draw nodes
+        // Draw nodes on top of connections
         for (id, node) in &self.nodes {
             let x = (node.x - self.pan_offset.0) * self.zoom;
             let y = (node.y - self.pan_offset.1) * self.zoom;
@@ -350,7 +324,6 @@ impl TopologyView {
                 }
             }
             "switch" => {
-                // Draw switch as a rectangle
                 let points = [
                     (x - size, y - size / 2.0),
                     (x + size, y - size / 2.0),
@@ -368,7 +341,6 @@ impl TopologyView {
                 }
             }
             "wireless" => {
-                // Draw wireless client as a small dot with waves
                 ctx.draw(&Points {
                     coords: &[(x, y)],
                     color,
@@ -385,7 +357,6 @@ impl TopologyView {
                 });
             }
             "wired" => {
-                // Draw wired client as a small square
                 let points = [
                     (x - size * 0.5, y - size * 0.5),
                     (x + size * 0.5, y - size * 0.5),
@@ -403,7 +374,6 @@ impl TopologyView {
                 }
             }
             _ => {
-                // Default to circle for unknown types
                 let points: Vec<(f64, f64)> = (0..16)
                     .map(|i| {
                         let angle = (i as f64) * std::f64::consts::PI / 8.0;
@@ -417,16 +387,16 @@ impl TopologyView {
             }
         }
 
-        // Draw selection indicator if selected
+        // Selected we found a hit 
         if selected {
-            // Draw a small dot in the center instead of the large highlight ring
+            // Inidcate to the user that the node is selected
             ctx.draw(&Points {
                 coords: &[(x, y)],
                 color: Color::White,
             });
         }
 
-        // Draw node label
+        // Label for the node should be the name of the node
         let label_y = y + size * 2.0;
         let label = node.name.clone();
         let label_x = x - (label.len() as f64 * 0.4 * self.zoom);
@@ -475,8 +445,7 @@ impl TopologyView {
         self.zoom = 1.0;
         self.pan_offset = (0.0, 0.0);
         self.initialize_layout();
-
-        // Calculate bounds to center the view
+        
         let mut min_x = f64::MAX;
         let mut min_y = f64::MAX;
         let mut max_x = f64::MIN;
@@ -489,7 +458,7 @@ impl TopologyView {
             max_y = max_y.max(node.y);
         }
 
-        // Center the view
+        // centre the view on the nodes
         let center_x = (min_x + max_x) / 2.0;
         let center_y = (min_y + max_y) / 2.0;
         self.pan_offset = (center_x - 50.0, center_y - 50.0);
