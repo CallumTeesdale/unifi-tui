@@ -29,6 +29,7 @@ use crate::handlers::{
 };
 use crate::state::AppState;
 use crate::ui::render;
+use crate::ui::topology::topology::{handle_topology_input, handle_topology_mouse};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -140,7 +141,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                                 0 => ui::sites::handle_sites_input(&mut app, key)?,
                                 1 => ui::devices::handle_device_input(&mut app, key).await?,
                                 2 => ui::clients::handle_client_input(&mut app, key).await?,
-                                3 => ui::topology::handle_topology_input(&mut app, key).await?,
+                                3 => handle_topology_input(&mut app, key).await?,
                                 4 => {}
                                 _ => {}
                             },
@@ -176,7 +177,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
 
                         // Only handle mouse events in the topology area
                         if is_mouse_in_area(event, areas[1]) {
-                            ui::topology::handle_topology_mouse(&mut app, event, areas[1]).await?;
+                            handle_topology_mouse(&mut app, event, areas[1]).await?;
                         }
                     }
                 }

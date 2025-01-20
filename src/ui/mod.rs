@@ -3,7 +3,7 @@ pub mod devices;
 pub mod sites;
 pub mod stats;
 pub mod status_bar;
-mod topology;
+pub mod topology;
 pub mod widgets;
 
 use crate::app::{App, DialogType, Mode};
