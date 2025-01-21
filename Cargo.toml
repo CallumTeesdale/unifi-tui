@@ -10,6 +10,9 @@ documentation = "https://docs.rs/unifi-tui"
 readme = "README.md"
 keywords = ["unifi", "networking", "api-client", "tui"]
 categories = ["api-bindings", "network-programming"]
+exclude = [
+    "*.gif",
+]
 
 [dependencies]
 unifi-rs = "0.2.1"
