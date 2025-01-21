@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2025-01-21
+
+### Documentation
+
+- Readme
+
 ## [0.2.1] - 2025-01-19
 
 ### Documentation
