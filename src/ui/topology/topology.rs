@@ -107,7 +107,6 @@ pub async fn handle_topology_mouse(
     event: MouseEvent,
     area: Rect,
 ) -> anyhow::Result<()> {
-    // Adjust mouse coordinates to account for borders and other UI elements
     app.topology_view.handle_mouse_event(event, area);
     Ok(())
 }

@@ -3,57 +3,66 @@
 [![Crates.io](https://img.shields.io/crates/v/unifi-tui)](https://crates.io/crates/unifi-tui)
 [![License](https://img.shields.io/crates/l/unifi-tui)](LICENSE)
 
+![demo](./doc/demo.gif)
 
-A terminal user interface (TUI) using the [unifi-rs](https://crates.io/crates/unifi-rs) library for the UniFi Network API.
+A terminal interface for your UniFi network, powered by [unifi-rs](https://crates.io/crates/unifi-rs).
 
-Currently, a work in progress. Intend to add more features as the unifi-rs library gets more features. 
+## Why?
+Sometimes you just want to check on your network without leaving the terminal. This tool makes it easy to monitor devices, track clients, and view network stats - all from the comfort of your command line.
 
-I only have a UDR, some mesh APs and a flex mini so I can only test on those devices. If you have other devices and it doesn't work, please open an issue.
-
-Also, not sure how it plays with other products in the ecosystem since I don't have access to them.
-
-
-## Usage
+## Getting Started
+With CLI arguments:
 ```shell
 unifi-tui --url {url} --api-key {api-key} --insecure
 ```
 
-Or with environment variables
+Or with environment variables:
 ```shell
 export UNIFI_URL={url}
 export UNIFI_API_KEY={api-key}
-
-unifi-tui
 ```
 
-## Features
-- View sites
-  - Select a site to limit the devices and clients to that site
-- View devices
-  - View device overview
-  - View device network throughput, granular to 5 second updates. Don't want to kill your controller with too many requests 
-  - View device ports and port status
-  - View device radios
-- View clients
-  - View client overview with Name, IP, MAC, device it is connected to, wired/wireless, uptime and status
-  - View client information with client information and the upstream device information
-- View stats
-  - View general stats for the site
-  - All site summary with device count, client count (wired/wireless), network throughput.
-  - Device status with device name, CPU usage, memory usage, and network throughput
-  - Client history graph with client count over time (wired/wireless)
-  - Network throughput graph with network throughput over time
+## What Can It Do?
+### Network Management
+
+- Switch between sites and get site-specific views
+- See your network topology with connected devices and clients
+- Monitor site-wide stats and performance metrics (CPU, memory, network throughput how useful up to you)
+
+### Device Management
+
+- Track all your UniFi equipment from one screen
+- Monitor device performance with 5-second granular updates
+- Check port status and radio configurations
+- View CPU, memory, and network throughput (how useful up to you)
+
+### Client Tracking
+- See clients connected to your network and what the uplink is for each client.
+- Track client history and connection patterns
+- Monitor wired vs wireless client distribution
 
 ## Installation
+With cargo:
 ```shell
 cargo install unifi-tui
 ```
 
 Or download the binary from the [releases](https://github.com/CallumTeesdale/unifi-tui/releases) page. Haven't got cross working with arm macs yet so no mac binaries yet.
 
+### Compatability
+So far tested with:
+- UniFi Dream Router (UDR)
+- UniFi Mesh APs
+- UniFi Flex Mini
+
+If you're running different gear and run into issues, please let me know by opening an issue.
+
+
 ## Roadmap
-Don't have one yet. Will add more features as the unifi-rs library gets more features which is whenever unifi api gets more features 
-available.
+This is still a work in progress. As unifi-rs gets more features, I'll keep adding functionality. Feel free to suggest features or improvements!
+
+### Note
+I'm not sure what all the `actions` are that you can call via the api. Haven't tested them myself. 
 
 
 ## Screenshots
@@ -70,6 +79,9 @@ available.
 ### Clients
 ![Clients](./doc/clients.png)
 ![ClientDetail](./doc/client-overview.png)
+
+### Topology
+![Topology](./doc/topology.png)
 
 ### Stats
 ![Stats](./doc/stats.png)

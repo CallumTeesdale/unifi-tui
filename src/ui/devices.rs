@@ -88,8 +88,7 @@ fn render_device_summary(f: &mut Frame, app: &App, area: Rect) {
                 offline_count.to_string(),
                 Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             ),
-        ]),
-        Line::from(vec![
+            Span::raw(" | "),
             Span::styled("📡 APs: ", Style::default().fg(Color::Cyan)),
             Span::styled(
                 ap_count.to_string(),

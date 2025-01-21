@@ -181,8 +181,7 @@ impl AppState {
                 (device_id, details, stats)
             });
         }
-
-        // Execute them in parallel
+        
         for fut in device_data_futures {
             let (device_id, details, stats) = fut.await;
             if let Ok(details) = details {
@@ -380,17 +379,16 @@ impl AppState {
                     site_name: site.name.clone().unwrap_or_else(|| "Unnamed".to_string()),
                 })
         });
-
-        // Only log when there's an actual change
+        
         if previous_site != site_id {
             if let Some(site) = &self.selected_site {
-                tracing::info!(
+                tracing::debug!(
                     site_id = ?site.site_id,
                     site_name = %site.site_name,
                     "Site context changed"
                 );
             } else {
-                tracing::info!("Site context cleared");
+                tracing::debug!("Site context cleared");
             }
         }
 
@@ -453,7 +451,7 @@ impl AppState {
             .cloned()
             .collect();
 
-        tracing::info!(
+        tracing::trace!(
             query = %query,
             matches = self.filtered_devices.len() + self.filtered_clients.len(),
             "Search executed"

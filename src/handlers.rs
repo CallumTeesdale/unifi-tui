@@ -46,9 +46,7 @@ pub async fn handle_dialog_input(app: &mut App, key: KeyEvent) -> Result<()> {
                     callback(app)?;
                 }
             }
-            KeyCode::Char('n') | KeyCode::Esc => {
-                // Do nothing
-            }
+            KeyCode::Char('n') | KeyCode::Esc => {}
             _ => {
                 app.dialog = Some(dialog);
             }

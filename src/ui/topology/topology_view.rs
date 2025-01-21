@@ -43,8 +43,8 @@ impl TopologyView {
         device_details: &HashMap<Uuid, DeviceDetails>,
     ) {
         self.nodes.clear();
-
-        // Add all device nodes to the network map
+        
+        // Create nodes for devices
         for device in devices {
             let device_type = if device.features.contains(&"accessPoint".to_string()) {
                 DeviceType::AccessPoint
@@ -74,8 +74,8 @@ impl TopologyView {
                 },
             );
         }
-
-        // Add all our client nodes to the network map
+        
+        // Create nodes for clients
         for client in clients {
             let (id, name, client_type, parent_id) = match client {
                 ClientOverview::Wireless(c) => (
@@ -107,7 +107,7 @@ impl TopologyView {
             );
         }
 
-        // Update the layout children for each node
+        // Create connections between nodes
         let connections: Vec<(Uuid, Uuid)> = self
             .nodes
             .values()
@@ -247,7 +247,7 @@ impl TopologyView {
 /// Rendering
 impl TopologyView {
     pub fn render(&self, ctx: &mut Context) {
-        // We start by drawing the connections between nodes first since tree layout is top-down
+        // start by drawing the connections between nodes first since tree layout is top-down
         for node in self.nodes.values() {
             if let Some(parent_id) = node.parent_id {
                 if let Some(parent) = self.nodes.get(&parent_id) {
@@ -301,7 +301,7 @@ impl TopologyView {
         let x = (node.x - self.pan_offset.0) * self.zoom;
         let y = (node.y - self.pan_offset.1) * self.zoom;
         let base_size = if selected { 3.0 } else { 2.0 };
-        let size = base_size * self.zoom; // Scale size with zoom
+        let size = base_size * self.zoom;
 
         match shape {
             "ap" => {
@@ -366,7 +366,7 @@ impl TopologyView {
             });
         }
 
-        // Label for the node should be the name of the node
+        // The node label 
         let label_y = y + size * 2.0;
         let label = node.name.clone();
         let label_x = x - (label.len() as f64 * 0.4 * self.zoom);
