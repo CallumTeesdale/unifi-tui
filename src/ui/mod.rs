@@ -3,8 +3,11 @@ pub mod devices;
 pub mod sites;
 pub mod stats;
 pub mod status_bar;
+pub mod topology;
 pub mod widgets;
+
 use crate::app::{App, DialogType, Mode};
+use crate::ui::topology::topology::render_topology;
 use crate::ui::{
     clients::render_clients, devices::render_devices, sites::render_sites, stats::render_stats,
     status_bar::render_status_bar,
@@ -66,7 +69,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
 }
 
 fn render_tabs(f: &mut Frame, app: &App, area: Rect) {
-    let titles = ["Sites", "Devices", "Clients", "Stats"];
+    let titles = ["Sites", "Devices", "Clients", "Topology", "Stats"];
     let tabs = Tabs::new(titles.iter().map(|t| Line::from(*t)).collect::<Vec<_>>())
         .block(Block::default().borders(Borders::ALL).title("Tabs"))
         .select(app.current_tab)
@@ -83,7 +86,8 @@ fn render_overview(f: &mut Frame, app: &mut App, area: Rect) {
         0 => render_sites(f, app, area),
         1 => render_devices(f, app, area),
         2 => render_clients(f, app, area),
-        3 => render_stats(f, app, area),
+        3 => render_topology(f, app, area),
+        4 => render_stats(f, app, area),
         _ => unreachable!(),
     }
 }
@@ -220,6 +224,21 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
                     Line::from("  s      - Sort clients (cycles through sorting options)"),
                 ],
                 3 => vec![
+                    // Topology tab
+                    Line::from("UniFi Network TUI Help - Topology View"),
+                    Line::from(""),
+                    Line::from("Global Commands:"),
+                    Line::from("  q      - Quit application"),
+                    Line::from("  ?      - Toggle this help screen"),
+                    Line::from("  Tab    - Next view"),
+                    Line::from("  S-Tab  - Previous view"),
+                    Line::from("  F5     - Force refresh data"),
+                    Line::from(""),
+                    Line::from("Topology Information:"),
+                    Line::from("  - Shows network topology and device connectivity"),
+                    Line::from("  - Updates every refresh cycle (5s by default)"),
+                ],
+                4 => vec![
                     // Stats tab
                     Line::from("UniFi Network TUI Help - Statistics View"),
                     Line::from(""),

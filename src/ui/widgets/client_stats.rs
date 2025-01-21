@@ -5,7 +5,9 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
-use unifi_rs::ClientOverview;
+use unifi_rs::common::{FrequencyBand, PortState};
+use unifi_rs::device::DeviceState;
+use unifi_rs::models::client::{ClientOverview, WiredClientOverview, WirelessClientOverview};
 use uuid::Uuid;
 
 pub struct ClientStatsView<'a> {
@@ -80,12 +82,7 @@ impl<'a> ClientStatsView<'a> {
         (formatted, style)
     }
 
-    fn render_connection_info(
-        &self,
-        f: &mut Frame,
-        area: Rect,
-        client: &unifi_rs::WirelessClientOverview,
-    ) {
+    fn render_connection_info(&self, f: &mut Frame, area: Rect, client: &WirelessClientOverview) {
         let (duration, duration_style) = Self::format_duration(client.base.connected_at);
 
         let info_text = vec![
@@ -143,7 +140,7 @@ impl<'a> ClientStatsView<'a> {
         &self,
         f: &mut Frame,
         area: Rect,
-        client: &unifi_rs::WiredClientOverview,
+        client: &WiredClientOverview,
     ) {
         let (duration, duration_style) = Self::format_duration(client.base.connected_at);
 
@@ -202,7 +199,7 @@ impl<'a> ClientStatsView<'a> {
         &self,
         f: &mut Frame,
         area: Rect,
-        client: &unifi_rs::WirelessClientOverview,
+        client: &WirelessClientOverview,
     ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -236,8 +233,8 @@ impl<'a> ClientStatsView<'a> {
                         Span::styled(
                             format!("{:?}", device.state),
                             match device.state {
-                                unifi_rs::DeviceState::Online => Style::default().fg(Color::Green),
-                                unifi_rs::DeviceState::Offline => Style::default().fg(Color::Red),
+                                DeviceState::Online => Style::default().fg(Color::Green),
+                                DeviceState::Offline => Style::default().fg(Color::Red),
                                 _ => Style::default().fg(Color::Yellow),
                             },
                         ),
@@ -265,10 +262,10 @@ impl<'a> ClientStatsView<'a> {
                         .map(|radio| {
                             let freq =
                                 radio.frequency_ghz.as_ref().map_or("Unknown", |f| match f {
-                                    unifi_rs::FrequencyBand::Band2_4GHz => "2.4 GHz",
-                                    unifi_rs::FrequencyBand::Band5GHz => "5 GHz",
-                                    unifi_rs::FrequencyBand::Band6GHz => "6 GHz",
-                                    unifi_rs::FrequencyBand::Band60GHz => "60 GHz",
+                                    FrequencyBand::Band2_4GHz => "2.4 GHz",
+                                    FrequencyBand::Band5GHz => "5 GHz",
+                                    FrequencyBand::Band6GHz => "6 GHz",
+                                    FrequencyBand::Band60GHz => "60 GHz",
                                 });
 
                             let channel = radio.channel.map_or("--".to_string(), |c| c.to_string());
@@ -334,12 +331,7 @@ impl<'a> ClientStatsView<'a> {
         }
     }
 
-    fn render_wired_device_info(
-        &self,
-        f: &mut Frame,
-        area: Rect,
-        client: &unifi_rs::WiredClientOverview,
-    ) {
+    fn render_wired_device_info(&self, f: &mut Frame, area: Rect, client: &WiredClientOverview) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -372,8 +364,8 @@ impl<'a> ClientStatsView<'a> {
                         Span::styled(
                             format!("{:?}", device.state),
                             match device.state {
-                                unifi_rs::DeviceState::Online => Style::default().fg(Color::Green),
-                                unifi_rs::DeviceState::Offline => Style::default().fg(Color::Red),
+                                DeviceState::Online => Style::default().fg(Color::Green),
+                                DeviceState::Offline => Style::default().fg(Color::Red),
                                 _ => Style::default().fg(Color::Yellow),
                             },
                         ),
@@ -390,7 +382,6 @@ impl<'a> ClientStatsView<'a> {
             );
             f.render_widget(device_info, chunks[0]);
 
-            // Port Information Table
             if let Some(details) = self.app_state.device_details.get(&device.id) {
                 if let Some(interfaces) = &details.interfaces {
                     let header = Row::new(vec!["Port", "Type", "Speed", "Status"])
@@ -413,8 +404,8 @@ impl<'a> ClientStatsView<'a> {
                             };
 
                             let status_style = match port.state {
-                                unifi_rs::PortState::Up => Style::default().fg(Color::Green),
-                                unifi_rs::PortState::Down => Style::default().fg(Color::Red),
+                                PortState::Up => Style::default().fg(Color::Green),
+                                PortState::Down => Style::default().fg(Color::Red),
                                 _ => Style::default().fg(Color::Yellow),
                             };
 

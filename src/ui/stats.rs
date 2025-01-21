@@ -1,5 +1,6 @@
 use crate::app::App;
 use crate::state::NetworkStats;
+use crate::ui::widgets::format_network_speed;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
@@ -7,6 +8,8 @@ use ratatui::widgets::{
     Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table,
 };
 use ratatui::{symbols, Frame};
+use unifi_rs::device::DeviceState;
+use unifi_rs::models::client::ClientOverview;
 
 pub fn render_stats(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
@@ -45,21 +48,21 @@ fn render_summary(f: &mut Frame, app: &App, area: Rect) {
         .state
         .devices
         .iter()
-        .filter(|d| matches!(d.state, unifi_rs::DeviceState::Online))
+        .filter(|d| matches!(d.state, DeviceState::Online))
         .count();
 
     let wireless_clients = app
         .state
         .clients
         .iter()
-        .filter(|c| matches!(c, unifi_rs::ClientOverview::Wireless(_)))
+        .filter(|c| matches!(c, ClientOverview::Wireless(_)))
         .count();
 
     let wired_clients = app
         .state
         .clients
         .iter()
-        .filter(|c| matches!(c, unifi_rs::ClientOverview::Wired(_)))
+        .filter(|c| matches!(c, ClientOverview::Wired(_)))
         .count();
 
     let total_tx = app
@@ -67,16 +70,14 @@ fn render_summary(f: &mut Frame, app: &App, area: Rect) {
         .device_stats
         .values()
         .filter_map(|stats| stats.uplink.as_ref().map(|u| u.tx_rate_bps))
-        .sum::<i64>() as f64
-        / 1_000_000.0;
+        .sum::<i64>();
 
     let total_rx = app
         .state
         .device_stats
         .values()
         .filter_map(|stats| stats.uplink.as_ref().map(|u| u.rx_rate_bps))
-        .sum::<i64>() as f64
-        / 1_000_000.0;
+        .sum::<i64>();
 
     let summary_text = vec![
         Line::from(format!(
@@ -88,9 +89,9 @@ fn render_summary(f: &mut Frame, app: &App, area: Rect) {
         Line::from(format!("• Wireless: {}", wireless_clients)),
         Line::from(format!("• Wired: {}", wired_clients)),
         Line::from(""),
-        Line::from("Network Throughput:"),
-        Line::from(format!("↑ {:.1} Mbps", total_tx)),
-        Line::from(format!("↓ {:.1} Mbps", total_rx)),
+        Line::from("Network Link Speed:"),
+        Line::from(format!("↑ {}", format_network_speed(total_tx))),
+        Line::from(format!("↓ {}", format_network_speed(total_rx))),
     ];
 
     let title = match &app.state.selected_site {
@@ -117,15 +118,15 @@ fn render_device_table(f: &mut Frame, app: &App, area: Rect) {
 
             let traffic = stats.uplink.as_ref().map_or("N/A".to_string(), |u| {
                 format!(
-                    "↑{:.1}/↓{:.1} Mb",
-                    u.tx_rate_bps as f64 / 1_000_000.0,
-                    u.rx_rate_bps as f64 / 1_000_000.0
+                    "↑{}/↓{}",
+                    format_network_speed(u.tx_rate_bps),
+                    format_network_speed(u.rx_rate_bps)
                 )
             });
 
             let style = match device.state {
-                unifi_rs::DeviceState::Online => Style::default().fg(Color::Green),
-                unifi_rs::DeviceState::Offline => Style::default().fg(Color::Red),
+                DeviceState::Online => Style::default().fg(Color::Green),
+                DeviceState::Offline => Style::default().fg(Color::Red),
                 _ => Style::default().fg(Color::Yellow),
             };
 
@@ -272,8 +273,7 @@ fn render_network_throughput(f: &mut Frame, app: &App, area: Rect) {
                 .device_stats
                 .iter()
                 .filter_map(|m| m.tx_rate)
-                .sum::<i64>() as f64
-                / 1_000_000.0;
+                .sum::<i64>() as f64;
             (i as f64, total_tx)
         })
         .collect();
@@ -286,8 +286,7 @@ fn render_network_throughput(f: &mut Frame, app: &App, area: Rect) {
                 .device_stats
                 .iter()
                 .filter_map(|m| m.rx_rate)
-                .sum::<i64>() as f64
-                / 1_000_000.0;
+                .sum::<i64>() as f64;
             (i as f64, total_rx)
         })
         .collect();
@@ -300,20 +299,20 @@ fn render_network_throughput(f: &mut Frame, app: &App, area: Rect) {
 
     let datasets = vec![
         Dataset::default()
-            .name("Upload")
+            .name("TX")
             .marker(symbols::Marker::Dot)
             .graph_type(GraphType::Line)
             .style(Style::default().fg(Color::Green))
             .data(&tx_data),
         Dataset::default()
-            .name("Download")
+            .name("RX")
             .marker(symbols::Marker::Dot)
             .graph_type(GraphType::Line)
             .style(Style::default().fg(Color::Blue))
             .data(&rx_data),
     ];
 
-    let max_label = format!("{:.1} Mbps", max_throughput);
+    let max_label = format_network_speed(max_throughput as i64).to_string();
     let y_labels = vec![Line::from("0"), Line::from(max_label.as_str())];
 
     let x_labels = vec![
@@ -325,7 +324,7 @@ fn render_network_throughput(f: &mut Frame, app: &App, area: Rect) {
     let chart = Chart::new(datasets)
         .block(
             Block::default()
-                .title("Network Throughput")
+                .title("Network Link Speed (All Devices)")
                 .borders(Borders::ALL)
                 .border_style(Style::default()),
         )
@@ -338,7 +337,7 @@ fn render_network_throughput(f: &mut Frame, app: &App, area: Rect) {
         )
         .y_axis(
             Axis::default()
-                .title("Mbps")
+                .title("Speed")
                 .style(Style::default())
                 .bounds([0.0, max_throughput * 1.1])
                 .labels(y_labels),

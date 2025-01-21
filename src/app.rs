@@ -1,6 +1,8 @@
 use crate::state::AppState;
+use crate::ui::topology::topology_view::TopologyView;
 use crate::ui::widgets::DeviceStatsView;
 use ratatui::widgets::TableState;
+use unifi_rs::models::client::ClientOverview;
 use uuid::Uuid;
 
 #[derive(PartialEq, Clone)]
@@ -55,6 +57,7 @@ pub struct App {
     pub clients_table_state: TableState,
     pub selected_device_id: Option<Uuid>,
     pub selected_client_id: Option<Uuid>,
+    pub topology_view: TopologyView,
     pub should_quit: bool,
 }
 
@@ -78,15 +81,31 @@ impl App {
             selected_device_id: None,
             selected_client_id: None,
             device_stats_view: None,
+            topology_view: TopologyView::new(),
             should_quit: false,
         })
     }
 
     pub async fn refresh(&mut self) -> anyhow::Result<()> {
-        self.state
-            .refresh_data()
-            .await
-            .map_err(|e| anyhow::anyhow!(e.to_string()))
+        self.state.refresh_data().await?;
+
+        if !self.search_query.is_empty() {
+            self.state.search(&self.search_query);
+        }
+
+        if !matches!(self.device_sort_order, SortOrder::None) {
+            self.sort_devices();
+        }
+        if !matches!(self.client_sort_order, SortOrder::None) {
+            self.sort_clients();
+        }
+
+        self.topology_view.update_from_state(
+            &self.state.filtered_devices,
+            &self.state.filtered_clients,
+            &self.state.device_details,
+        );
+        Ok(())
     }
 
     pub fn sort_devices(&mut self) {
@@ -117,40 +136,30 @@ impl App {
         }
 
         self.state.filtered_clients.sort_by(|a, b| {
-            let (a_name, a_ip, a_mac) = match a {
-                unifi_rs::ClientOverview::Wired(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
+            let get_fields = |client: &ClientOverview| match client {
+                ClientOverview::Wired(c) => (
+                    c.base.name.as_deref().unwrap_or("").to_string(),
+                    c.base.ip_address.as_deref().unwrap_or("").to_string(),
+                    c.mac_address.to_string(),
                 ),
-                unifi_rs::ClientOverview::Wireless(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
+                ClientOverview::Wireless(c) => (
+                    c.base.name.as_deref().unwrap_or("").to_string(),
+                    c.base.ip_address.as_deref().unwrap_or("").to_string(),
+                    c.mac_address.to_string(),
                 ),
-                _ => ("", "", ""),
+                _ => (String::new(), String::new(), String::new()),
             };
 
-            let (b_name, b_ip, b_mac) = match b {
-                unifi_rs::ClientOverview::Wired(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
-                ),
-                unifi_rs::ClientOverview::Wireless(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
-                ),
-                _ => ("", "", ""),
-            };
+            let (a_name, a_ip, a_mac) = get_fields(a);
+            let (b_name, b_ip, b_mac) = get_fields(b);
 
             let cmp = match self.client_sort_column {
-                0 => a_name.cmp(b_name),
-                1 => a_ip.cmp(b_ip),
-                2 => a_mac.cmp(b_mac),
+                0 => a_name.cmp(&b_name),
+                1 => a_ip.cmp(&b_ip),
+                2 => a_mac.cmp(&b_mac),
                 _ => std::cmp::Ordering::Equal,
             };
+
             match self.client_sort_order {
                 SortOrder::Ascending => cmp,
                 SortOrder::Descending => cmp.reverse(),
@@ -160,11 +169,11 @@ impl App {
     }
 
     pub fn next_tab(&mut self) {
-        self.current_tab = (self.current_tab + 1) % 4;
+        self.current_tab = (self.current_tab + 1) % 5;
     }
 
     pub fn previous_tab(&mut self) {
-        self.current_tab = (self.current_tab + 3) % 4;
+        self.current_tab = (self.current_tab + 3) % 5;
     }
 
     pub fn toggle_help(&mut self) {

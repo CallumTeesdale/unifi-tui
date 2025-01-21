@@ -1,11 +1,12 @@
 use crate::app::{App, SortOrder};
+use crate::ui::widgets::format_network_speed;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
-use unifi_rs::DeviceState;
+use unifi_rs::device::DeviceState;
 
 pub fn render_devices(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
@@ -87,8 +88,7 @@ fn render_device_summary(f: &mut Frame, app: &App, area: Rect) {
                 offline_count.to_string(),
                 Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             ),
-        ]),
-        Line::from(vec![
+            Span::raw(" | "),
             Span::styled("📡 APs: ", Style::default().fg(Color::Cyan)),
             Span::styled(
                 ap_count.to_string(),
@@ -148,7 +148,7 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
         Cell::from("Status").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Load").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Memory").style(Style::default().add_modifier(Modifier::BOLD)),
-        Cell::from("Network").style(Style::default().add_modifier(Modifier::BOLD)),
+        Cell::from("TX/RX").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Firmware").style(Style::default().add_modifier(Modifier::BOLD)),
         Cell::from("Uptime").style(Style::default().add_modifier(Modifier::BOLD)),
     ]);
@@ -161,41 +161,25 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
             let stats = app.state.device_stats.get(&device.id);
             let details = app.state.device_details.get(&device.id);
 
-            let cpu_text =
-                stats
-                    .and_then(|s| s.cpu_utilization_pct)
-                    .map_or("N/A".to_string(), |cpu| {
-                        let sparkline = match cpu {
-                            c if c >= 90.0 => "█",
-                            c if c >= 75.0 => "▇",
-                            c if c >= 50.0 => "▅",
-                            c if c >= 25.0 => "▃",
-                            _ => "▁",
-                        };
-                        format!("{}  {:.1}%", sparkline, cpu)
-                    });
+            let cpu_text = stats
+                .and_then(|s| s.cpu_utilization_pct)
+                .map_or("N/A".to_string(), |cpu| sparkline(cpu));
 
-            let memory_text =
-                stats
-                    .and_then(|s| s.memory_utilization_pct)
-                    .map_or("N/A".to_string(), |mem| {
-                        let sparkline = match mem {
-                            m if m >= 90.0 => "█",
-                            m if m >= 75.0 => "▇",
-                            m if m >= 50.0 => "▅",
-                            m if m >= 25.0 => "▃",
-                            _ => "▁",
-                        };
-                        format!("{}  {:.1}%", sparkline, mem)
-                    });
+            let memory_text = stats
+                .and_then(|s| s.memory_utilization_pct)
+                .map_or("N/A".to_string(), |mem| sparkline(mem));
 
             let network_text =
                 stats
                     .and_then(|s| s.uplink.as_ref())
                     .map_or("N/A".to_string(), |u| {
-                        let tx_mbps = u.tx_rate_bps as f64 / 1_000_000.0;
-                        let rx_mbps = u.rx_rate_bps as f64 / 1_000_000.0;
-                        format!("↑{:.1}/↓{:.1} Mb", tx_mbps, rx_mbps)
+                        let tx_mbps = u.tx_rate_bps;
+                        let rx_mbps = u.rx_rate_bps;
+                        format!(
+                            "↑{}/↓{}",
+                            format_network_speed(tx_mbps),
+                            format_network_speed(rx_mbps)
+                        )
                     });
 
             let uptime_text = stats.map_or("N/A".to_string(), |s| {
@@ -256,6 +240,17 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
         .highlight_symbol("➤ ");
 
     f.render_stateful_widget(table, area, &mut app.devices_table_state);
+}
+
+fn sparkline(mem: f64) -> String {
+    let sparkline = match mem {
+        m if m >= 90.0 => "█",
+        m if m >= 75.0 => "▇",
+        m if m >= 50.0 => "▅",
+        m if m >= 25.0 => "▃",
+        _ => "▁",
+    };
+    format!("{}  {:.1}%", sparkline, mem)
 }
 
 fn render_device_controls(f: &mut Frame, area: Rect) {
