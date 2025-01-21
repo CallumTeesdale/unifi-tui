@@ -5,7 +5,7 @@ mod state;
 mod ui;
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use crossterm::event::MouseEvent;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -13,13 +13,15 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use directories::ProjectDirs;
-use log::LevelFilter;
 use ratatui::prelude::*;
-use simplelog::{CombinedLogger, ConfigBuilder, WriteLogger};
-use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Once;
 use std::{io, time::Duration};
+use tracing::level_filters::LevelFilter;
+use tracing::{error, info};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::EnvFilter;
 use unifi_rs::UnifiClientBuilder;
 
 use crate::app::{App, Mode};
@@ -30,6 +32,27 @@ use crate::handlers::{
 use crate::state::AppState;
 use crate::ui::render;
 use crate::ui::topology::topology::{handle_topology_input, handle_topology_mouse};
+
+#[derive(Debug, Clone, ValueEnum)]
+enum LogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl From<LogLevel> for LevelFilter {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Error => LevelFilter::ERROR,
+            LogLevel::Warn => LevelFilter::WARN,
+            LogLevel::Info => LevelFilter::INFO,
+            LogLevel::Debug => LevelFilter::DEBUG,
+            LogLevel::Trace => LevelFilter::TRACE,
+        }
+    }
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -45,11 +68,26 @@ struct Cli {
     /// Skip SSL verification
     #[arg(long, default_value = "false")]
     insecure: bool,
+
+    /// Enable logging
+    #[arg(long)]
+    logging: bool,
+
+    /// Log level (only valid if logging is enabled)
+    #[arg(long, value_enum, default_value = "info")]
+    log_level: LogLevel,
 }
 
 static INIT: Once = Once::new();
 
-pub fn initialize_logging() -> Result<PathBuf, anyhow::Error> {
+pub fn initialize_logging(
+    enabled: bool,
+    level: LevelFilter,
+) -> Result<Option<PathBuf>, anyhow::Error> {
+    if !enabled {
+        return Ok(None);
+    }
+
     let mut log_path = None;
 
     INIT.call_once(|| {
@@ -60,30 +98,36 @@ pub fn initialize_logging() -> Result<PathBuf, anyhow::Error> {
             let log_file = data_dir.join("debug.log");
             log_path = Some(log_file.clone());
 
-            let config = ConfigBuilder::new()
-                .set_time_format_rfc3339()
-                .set_thread_level(LevelFilter::Error)
-                .set_target_level(LevelFilter::Error)
-                .set_location_level(LevelFilter::Debug)
-                .build();
+            let file_appender = RollingFileAppender::new(Rotation::NEVER, data_dir, "debug.log");
 
-            CombinedLogger::init(vec![WriteLogger::new(
-                LevelFilter::Debug,
-                config,
-                File::create(&log_file).expect("Failed to create log file"),
-            )])
-            .expect("Failed to initialize logger");
+            let filter = EnvFilter::builder()
+                .with_default_directive(level.into())
+                .parse("unifi_tui=debug")
+                .unwrap()
+                .add_directive("hyper=off".parse().unwrap());
+
+            tracing_subscriber::fmt()
+                .with_file(true)
+                .with_line_number(true)
+                .with_thread_ids(true)
+                .with_target(false)
+                .with_span_events(FmtSpan::FULL)
+                .with_writer(file_appender)
+                .with_env_filter(filter)
+                .init();
         }
     });
 
-    log_path.ok_or_else(|| anyhow::anyhow!("Failed to initialize logging"))
+    Ok(log_path)
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let log_path = initialize_logging()?;
-    log::info!("Starting application. Log file: {:?}", log_path);
+
+    if let Some(log_path) = initialize_logging(cli.logging, cli.log_level.into())? {
+        info!("Starting application. Log file: {:?}", log_path);
+    }
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -110,9 +154,9 @@ async fn main() -> Result<()> {
     terminal.show_cursor()?;
 
     if let Err(err) = res {
+        error!("{:?}", err);
         println!("Error: {err}");
     }
-
     Ok(())
 }
 
@@ -161,11 +205,9 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                 }
                 Event::Mouse(event) => {
                     if app.current_tab == 3 && app.mode == Mode::Overview {
-                        // Get the terminal size and convert to Rect
                         let size = terminal.size()?;
                         let area = Rect::new(0, 0, size.width, size.height);
 
-                        // Get the layout areas
                         let areas = Layout::default()
                             .direction(Direction::Vertical)
                             .constraints([
@@ -175,7 +217,6 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                             ])
                             .split(area);
 
-                        // Only handle mouse events in the topology area
                         if is_mouse_in_area(event, areas[1]) {
                             handle_topology_mouse(&mut app, event, areas[1]).await?;
                         }

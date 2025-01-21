@@ -6,7 +6,7 @@ use ratatui::{
     widgets::canvas::{Context, Line, Points},
 };
 use std::collections::HashMap;
-use unifi_rs::device::{DeviceDetails, DeviceOverview, DeviceState};
+use unifi_rs::device::{DeviceDetails, DeviceOverview};
 use unifi_rs::models::client::ClientOverview;
 use uuid::Uuid;
 
@@ -285,7 +285,7 @@ impl TopologyView {
         for (id, node) in &self.nodes {
             let selected = Some(*id) == self.selected_node;
 
-            let (shape, color) = self.get_node_style(node);
+            let (shape, color) = node.get_style();
             self.draw_node(ctx, node, shape, color, selected);
         }
     }
@@ -307,12 +307,7 @@ impl TopologyView {
             "ap" => {
                 for i in 0..3 {
                     let radius = size - (i as f64 * 0.5 * self.zoom);
-                    let points: Vec<(f64, f64)> = (0..16)
-                        .map(|j| {
-                            let angle = (j as f64) * std::f64::consts::PI / 8.0;
-                            (x + angle.cos() * radius, y + angle.sin() * radius)
-                        })
-                        .collect();
+                    let points = circle(x, y, radius);
                     ctx.draw(&Points {
                         coords: &points,
                         color,
@@ -326,15 +321,7 @@ impl TopologyView {
                     (x + size, y + size / 2.0),
                     (x - size, y + size / 2.0),
                 ];
-                for i in 0..points.len() {
-                    ctx.draw(&Line {
-                        x1: points[i].0,
-                        y1: points[i].1,
-                        x2: points[(i + 1) % points.len()].0,
-                        y2: points[(i + 1) % points.len()].1,
-                        color,
-                    });
-                }
+                square(ctx, color, &points);
             }
             "wireless" => {
                 ctx.draw(&Points {
@@ -359,23 +346,10 @@ impl TopologyView {
                     (x + size * 0.5, y + size * 0.5),
                     (x - size * 0.5, y + size * 0.5),
                 ];
-                for i in 0..points.len() {
-                    ctx.draw(&Line {
-                        x1: points[i].0,
-                        y1: points[i].1,
-                        x2: points[(i + 1) % points.len()].0,
-                        y2: points[(i + 1) % points.len()].1,
-                        color,
-                    });
-                }
+                square(ctx, color, &points);
             }
             _ => {
-                let points: Vec<(f64, f64)> = (0..16)
-                    .map(|i| {
-                        let angle = (i as f64) * std::f64::consts::PI / 8.0;
-                        (x + angle.cos() * size, y + angle.sin() * size)
-                    })
-                    .collect();
+                let points = circle(x, y, size);
                 ctx.draw(&Points {
                     coords: &points,
                     color,
@@ -397,30 +371,6 @@ impl TopologyView {
         let label = node.name.clone();
         let label_x = x - (label.len() as f64 * 0.4 * self.zoom);
         ctx.print(label_x, label_y, label);
-    }
-
-    fn get_node_style(&self, node: &NetworkNode) -> (&'static str, Color) {
-        match &node.node_type {
-            NodeType::Device { device_type, state } => {
-                let base_color = match state {
-                    DeviceState::Online => Color::Green,
-                    DeviceState::Offline => Color::Red,
-                    _ => Color::Yellow,
-                };
-
-                match device_type {
-                    DeviceType::AccessPoint => ("ap", base_color),
-                    DeviceType::Switch => ("switch", base_color),
-                    DeviceType::Gateway => ("gateway", base_color),
-                    DeviceType::Other => ("device", base_color),
-                }
-            }
-            NodeType::Client { client_type } => match client_type {
-                ClientType::Wireless => ("wireless", Color::Yellow),
-                ClientType::Wired => ("wired", Color::Blue),
-                ClientType::Vpn => ("vpn", Color::Cyan),
-            },
-        }
     }
 }
 
@@ -458,5 +408,27 @@ impl TopologyView {
         let center_x = (min_x + max_x) / 2.0;
         let center_y = (min_y + max_y) / 2.0;
         self.pan_offset = (center_x - 50.0, center_y - 50.0);
+    }
+}
+
+fn circle(x: f64, y: f64, size: f64) -> Vec<(f64, f64)> {
+    let points: Vec<(f64, f64)> = (0..16)
+        .map(|i| {
+            let angle = (i as f64) * std::f64::consts::PI / 8.0;
+            (x + angle.cos() * size, y + angle.sin() * size)
+        })
+        .collect();
+    points
+}
+
+fn square(ctx: &mut Context, color: Color, points: &[(f64, f64); 4]) {
+    for i in 0..points.len() {
+        ctx.draw(&Line {
+            x1: points[i].0,
+            y1: points[i].1,
+            x2: points[(i + 1) % points.len()].0,
+            y2: points[(i + 1) % points.len()].1,
+            color,
+        });
     }
 }

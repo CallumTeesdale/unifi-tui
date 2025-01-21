@@ -4,6 +4,7 @@ use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::{Duration, Instant};
+use tracing::instrument;
 use unifi_rs::common::Page;
 use unifi_rs::device::{DeviceDetails, DeviceOverview};
 use unifi_rs::models::client::ClientOverview;
@@ -67,7 +68,9 @@ pub struct AppState {
 }
 
 impl AppState {
+    #[instrument(skip(client))]
     pub async fn new(client: UnifiClient) -> Result<Self> {
+        tracing::info!("Initializing new AppState");
         Ok(Self {
             client,
             sites: Vec::new(),
@@ -87,109 +90,27 @@ impl AppState {
         })
     }
 
-    pub fn update_network_history(&mut self, device_id: Uuid, stats: &DeviceStatistics) {
-        if let Some(uplink) = &stats.uplink {
-            let history = self
-                .network_history
-                .entry(device_id)
-                .or_insert_with(|| VecDeque::with_capacity(60));
-
-            let throughput = NetworkThroughput {
-                timestamp: Utc::now(),
-                tx_rate: uplink.tx_rate_bps,
-                rx_rate: uplink.rx_rate_bps,
-            };
-
-            if history.len() >= 60 {
-                history.pop_front();
-            }
-            history.push_back(throughput);
-        }
-    }
-
-    pub fn set_error(&mut self, message: String) {
-        self.error_message = Some(message);
-        self.error_timestamp = Some(Instant::now());
-    }
-
-    async fn fetch_all_paged_data<T>(
-        &self,
-        fetch_page: impl Fn(i32, i32) -> Pin<Box<dyn Future<Output = Result<Page<T>>> + Send>> + Send,
-        page_size: i32,
-    ) -> Result<Vec<T>> {
-        let mut all_items = Vec::new();
-        let mut offset = 0;
-
-        loop {
-            let page = fetch_page(offset, page_size).await?;
-            all_items.extend(page.data);
-
-            if offset + page.count >= page.total_count {
-                break;
-            }
-            offset += page_size;
-        }
-
-        Ok(all_items)
-    }
-
-    async fn fetch_site_data(&mut self, site_id: Uuid) -> Result<()> {
-        let devices = self
-            .fetch_all_paged_data(
-                |offset, limit| {
-                    let client = self.client.clone();
-                    Box::pin(async move {
-                        client
-                            .list_devices(site_id, Some(offset), Some(limit))
-                            .await
-                            .map_err(AppError::UniFi)
-                    })
-                },
-                25,
-            )
-            .await?;
-
-        let clients = self
-            .fetch_all_paged_data(
-                |offset, limit| {
-                    let client = self.client.clone();
-                    Box::pin(async move {
-                        client
-                            .list_clients(site_id, Some(offset), Some(limit))
-                            .await
-                            .map_err(AppError::UniFi)
-                    })
-                },
-                25,
-            )
-            .await?;
-
-        for device in &devices {
-            if let Ok(details) = self.client.get_device_details(site_id, device.id).await {
-                self.device_details.insert(device.id, details);
-            }
-            if let Ok(stats) = self.client.get_device_statistics(site_id, device.id).await {
-                self.device_stats.insert(device.id, stats.clone());
-                self.update_network_history(device.id, &stats);
-            }
-        }
-
-        if self.selected_site.as_ref().map(|s| s.site_id) == Some(site_id) {
-            self.devices = devices;
-            self.clients = clients;
-        } else {
-            self.devices.extend(devices);
-            self.clients.extend(clients);
-        }
-
-        Ok(())
-    }
-
     pub async fn refresh_data(&mut self) -> Result<()> {
         if self.last_update.elapsed() < self.refresh_interval {
             return Ok(());
         }
 
+        tracing::debug!("Starting data refresh");
+
+        if let Err(e) = self.fetch_sites_and_data().await {
+            tracing::error!(error = %e, "Failed to refresh data");
+            self.set_error(format!("Error refreshing data: {}", e));
+            return Err(e);
+        }
+
+        self.update_stats();
+        self.apply_filters();
+        self.last_update = Instant::now();
+        Ok(())
+    }
+
+    #[instrument(skip(self), fields(site_id = ?self.selected_site.as_ref().map(|s| s.site_id)))]
+    async fn fetch_sites_and_data(&mut self) -> Result<()> {
         let sites = self
             .fetch_all_paged_data(
                 |offset, limit| {
@@ -209,29 +130,169 @@ impl AppState {
 
         match &self.selected_site {
             Some(site) => {
+                tracing::debug!(site_id = ?site.site_id, "Fetching site data");
                 self.fetch_site_data(site.site_id).await?;
             }
             None => {
-                self.devices.clear();
-                self.clients.clear();
-                self.device_details.clear();
-                self.device_stats.clear();
+                self.fetch_all_sites_data().await?;
+            }
+        }
 
-                let site_ids: Vec<Uuid> = self.sites.iter().map(|s| s.id).collect();
-                for site_id in site_ids {
-                    if let Err(e) = self.fetch_site_data(site_id).await {
-                        self.set_error(format!("Error fetching data for site {}: {}", site_id, e));
-                    }
+        Ok(())
+    }
+
+    async fn fetch_site_data(&mut self, site_id: Uuid) -> Result<()> {
+        let (devices, clients) = tokio::join!(
+            self.fetch_all_paged_data(
+                |offset, limit| {
+                    let client = self.client.clone();
+                    Box::pin(async move {
+                        client
+                            .list_devices(site_id, Some(offset), Some(limit))
+                            .await
+                            .map_err(AppError::UniFi)
+                    })
+                },
+                25,
+            ),
+            self.fetch_all_paged_data(
+                |offset, limit| {
+                    let client = self.client.clone();
+                    Box::pin(async move {
+                        client
+                            .list_clients(site_id, Some(offset), Some(limit))
+                            .await
+                            .map_err(AppError::UniFi)
+                    })
+                },
+                25,
+            )
+        );
+
+        let (devices, clients) = (devices?, clients?);
+
+        let mut device_data_futures = Vec::new();
+        for device in &devices {
+            let client = self.client.clone();
+            let device_id = device.id;
+            device_data_futures.push(async move {
+                let details = client.get_device_details(site_id, device_id).await;
+                let stats = client.get_device_statistics(site_id, device_id).await;
+                (device_id, details, stats)
+            });
+        }
+
+        // Execute them in parallel
+        for fut in device_data_futures {
+            let (device_id, details, stats) = fut.await;
+            if let Ok(details) = details {
+                self.device_details.insert(device_id, details);
+            }
+            if let Ok(stats) = stats {
+                self.device_stats.insert(device_id, stats.clone());
+                self.update_network_history(device_id, &stats);
+            }
+        }
+
+        if self.selected_site.as_ref().map(|s| s.site_id) == Some(site_id) {
+            self.devices = devices;
+            self.clients = clients;
+        } else {
+            self.devices.extend(devices);
+            self.clients.extend(clients);
+        }
+
+        Ok(())
+    }
+
+    #[instrument(skip(self, fetch_page))]
+    async fn fetch_all_paged_data<T>(
+        &self,
+        fetch_page: impl Fn(i32, i32) -> Pin<Box<dyn Future<Output = Result<Page<T>>> + Send>> + Send,
+        page_size: i32,
+    ) -> Result<Vec<T>> {
+        let mut all_items = Vec::new();
+        let mut offset = 0;
+
+        loop {
+            tracing::debug!(offset, page_size, "Fetching page");
+            let page = fetch_page(offset, page_size).await?;
+            all_items.extend(page.data);
+
+            if offset + page.count >= page.total_count {
+                break;
+            }
+            offset += page_size;
+        }
+
+        tracing::debug!(items_count = all_items.len(), "Completed paged data fetch");
+        Ok(all_items)
+    }
+
+    #[instrument(skip(self))]
+    async fn fetch_all_sites_data(&mut self) -> Result<()> {
+        self.devices.clear();
+        self.clients.clear();
+        self.device_details.clear();
+        self.device_stats.clear();
+
+        let site_ids: Vec<Uuid> = self.sites.iter().map(|s| s.id).collect();
+
+        for site_id in site_ids {
+            match self.fetch_site_data(site_id).await {
+                Ok(_) => {
+                    tracing::debug!(site_id = ?site_id, "Successfully fetched site data");
+                }
+                Err(e) => {
+                    tracing::error!(
+                        site_id = ?site_id,
+                        error = %e,
+                        "Failed to fetch site data"
+                    );
+                    self.set_error(format!("Error fetching data for site {}: {}", site_id, e));
                 }
             }
         }
 
-        self.update_stats();
-        self.apply_filters();
-        self.last_update = Instant::now();
         Ok(())
     }
 
+    #[instrument(skip(self, stats))]
+    pub fn update_network_history(&mut self, device_id: Uuid, stats: &DeviceStatistics) {
+        if let Some(uplink) = &stats.uplink {
+            let history = self
+                .network_history
+                .entry(device_id)
+                .or_insert_with(|| VecDeque::with_capacity(60));
+
+            let throughput = NetworkThroughput {
+                timestamp: Utc::now(),
+                tx_rate: uplink.tx_rate_bps,
+                rx_rate: uplink.rx_rate_bps,
+            };
+
+            if history.len() >= 60 {
+                history.pop_front();
+            }
+            history.push_back(throughput);
+
+            tracing::debug!(
+                device_id = ?device_id,
+                tx_rate = uplink.tx_rate_bps,
+                rx_rate = uplink.rx_rate_bps,
+                "Updated network history"
+            );
+        }
+    }
+
+    #[instrument(skip(self))]
+    pub fn set_error(&mut self, message: String) {
+        tracing::error!(error = %message);
+        self.error_message = Some(message);
+        self.error_timestamp = Some(Instant::now());
+    }
+
+    #[instrument(skip(self))]
     fn update_stats(&mut self) {
         let stats = NetworkStats {
             timestamp: Utc::now(),
@@ -254,10 +315,27 @@ impl AppState {
             self.stats_history.pop_front();
         }
         self.stats_history.push_back(stats);
+
+        tracing::debug!(
+            client_count = self.clients.len(),
+            wireless_count = self
+                .stats_history
+                .back()
+                .map(|s| s.wireless_clients)
+                .unwrap_or(0),
+            wired_count = self
+                .stats_history
+                .back()
+                .map(|s| s.wired_clients)
+                .unwrap_or(0),
+            "Updated network stats"
+        );
     }
 
+    #[instrument(skip(self))]
     fn collect_device_metrics(&self) -> Vec<DeviceMetrics> {
-        self.devices
+        let metrics: Vec<DeviceMetrics> = self
+            .devices
             .iter()
             .filter_map(|device| {
                 let stats = self.device_stats.get(&device.id)?;
@@ -271,15 +349,28 @@ impl AppState {
                     rx_rate: stats.uplink.as_ref().map(|u| u.rx_rate_bps),
                 })
             })
-            .collect()
+            .collect();
+
+        tracing::debug!(metric_count = metrics.len(), "Collected device metrics");
+        metrics
     }
 
+    #[instrument(skip(self))]
     pub fn apply_filters(&mut self) {
         self.filtered_devices = self.devices.clone();
         self.filtered_clients = self.clients.clone();
+
+        tracing::debug!(
+            device_count = self.filtered_devices.len(),
+            client_count = self.filtered_clients.len(),
+            "Applied filters"
+        );
     }
 
+    #[instrument(skip(self))]
     pub fn set_site_context(&mut self, site_id: Option<Uuid>) {
+        let previous_site = self.selected_site.as_ref().map(|s| s.site_id);
+
         self.selected_site = site_id.and_then(|id| {
             self.sites
                 .iter()
@@ -290,6 +381,19 @@ impl AppState {
                 })
         });
 
+        // Only log when there's an actual change
+        if previous_site != site_id {
+            if let Some(site) = &self.selected_site {
+                tracing::info!(
+                    site_id = ?site.site_id,
+                    site_name = %site.site_name,
+                    "Site context changed"
+                );
+            } else {
+                tracing::info!("Site context cleared");
+            }
+        }
+
         self.devices.clear();
         self.clients.clear();
         self.device_details.clear();
@@ -297,6 +401,7 @@ impl AppState {
         self.last_update = Instant::now() - self.refresh_interval;
     }
 
+    #[instrument(skip(self), fields(query_len = query.len()))]
     pub fn search(&mut self, query: &str) {
         let query = query.to_lowercase();
 
@@ -305,15 +410,20 @@ impl AppState {
             self.filtered_clients = self.clients.clone();
             return;
         }
+
         self.filtered_devices = self
             .devices
             .iter()
             .filter(|d| {
-                d.name.to_lowercase().contains(&query)
-                    || d.model.to_lowercase().contains(&query)
-                    || d.mac_address.to_lowercase().contains(&query)
-                    || d.ip_address.to_lowercase().contains(&query)
-                    || format!("{:?}", d.state).to_lowercase().contains(&query)
+                [
+                    &d.name,
+                    &d.model,
+                    &d.mac_address,
+                    &d.ip_address,
+                    &format!("{:?}", d.state),
+                ]
+                .iter()
+                .any(|field| field.to_lowercase().contains(&query))
             })
             .cloned()
             .collect();
@@ -322,43 +432,31 @@ impl AppState {
             .clients
             .iter()
             .filter(|c| match c {
-                ClientOverview::Wired(wc) => {
-                    wc.base
-                        .name
-                        .as_deref()
-                        .unwrap_or("")
-                        .to_lowercase()
-                        .contains(&query)
-                        || wc
-                            .base
-                            .ip_address
-                            .as_deref()
-                            .unwrap_or("")
-                            .to_lowercase()
-                            .contains(&query)
-                        || wc.mac_address.to_lowercase().contains(&query)
-                        || wc.uplink_device_id.to_string().contains(&query)
-                }
-                ClientOverview::Wireless(wc) => {
-                    wc.base
-                        .name
-                        .as_deref()
-                        .unwrap_or("")
-                        .to_lowercase()
-                        .contains(&query)
-                        || wc
-                            .base
-                            .ip_address
-                            .as_deref()
-                            .unwrap_or("")
-                            .to_lowercase()
-                            .contains(&query)
-                        || wc.mac_address.to_lowercase().contains(&query)
-                        || wc.uplink_device_id.to_string().contains(&query)
-                }
+                ClientOverview::Wired(wc) => [
+                    wc.base.name.as_deref().unwrap_or(""),
+                    wc.base.ip_address.as_deref().unwrap_or(""),
+                    &wc.mac_address,
+                    &wc.uplink_device_id.to_string(),
+                ]
+                .iter()
+                .any(|field| field.to_lowercase().contains(&query)),
+                ClientOverview::Wireless(wc) => [
+                    wc.base.name.as_deref().unwrap_or(""),
+                    wc.base.ip_address.as_deref().unwrap_or(""),
+                    &wc.mac_address,
+                    &wc.uplink_device_id.to_string(),
+                ]
+                .iter()
+                .any(|field| field.to_lowercase().contains(&query)),
                 _ => false,
             })
             .cloned()
             .collect();
+
+        tracing::info!(
+            query = %query,
+            matches = self.filtered_devices.len() + self.filtered_clients.len(),
+            "Search executed"
+        );
     }
 }

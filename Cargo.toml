@@ -22,6 +22,7 @@ chrono = { version = "0.4.39", features = ["serde"] }
 uuid = { version = "1.12.0", features = ["v4"] }
 thiserror = { version = "2.0.11", features = ["default"] }
 directories = "3.0.2"
-log = "0.4.25"
-simplelog = "0.12.2"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-appender = "0.2.3"
 

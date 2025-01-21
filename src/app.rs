@@ -89,14 +89,25 @@ impl App {
     pub async fn refresh(&mut self) -> anyhow::Result<()> {
         self.state.refresh_data().await?;
 
+        if !self.search_query.is_empty() {
+            self.state.search(&self.search_query);
+        }
+
+        if !matches!(self.device_sort_order, SortOrder::None) {
+            self.sort_devices();
+        }
+        if !matches!(self.client_sort_order, SortOrder::None) {
+            self.sort_clients();
+        }
+
         self.topology_view.update_from_state(
             &self.state.filtered_devices,
             &self.state.filtered_clients,
             &self.state.device_details,
         );
-
         Ok(())
     }
+
     pub fn sort_devices(&mut self) {
         if matches!(self.device_sort_order, SortOrder::None) {
             return;
@@ -125,40 +136,30 @@ impl App {
         }
 
         self.state.filtered_clients.sort_by(|a, b| {
-            let (a_name, a_ip, a_mac) = match a {
+            let get_fields = |client: &ClientOverview| match client {
                 ClientOverview::Wired(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
+                    c.base.name.as_deref().unwrap_or("").to_string(),
+                    c.base.ip_address.as_deref().unwrap_or("").to_string(),
+                    c.mac_address.to_string(),
                 ),
                 ClientOverview::Wireless(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
+                    c.base.name.as_deref().unwrap_or("").to_string(),
+                    c.base.ip_address.as_deref().unwrap_or("").to_string(),
+                    c.mac_address.to_string(),
                 ),
-                _ => ("", "", ""),
+                _ => (String::new(), String::new(), String::new()),
             };
 
-            let (b_name, b_ip, b_mac) = match b {
-                ClientOverview::Wired(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
-                ),
-                ClientOverview::Wireless(c) => (
-                    c.base.name.as_deref().unwrap_or(""),
-                    c.base.ip_address.as_deref().unwrap_or(""),
-                    c.mac_address.as_str(),
-                ),
-                _ => ("", "", ""),
-            };
+            let (a_name, a_ip, a_mac) = get_fields(a);
+            let (b_name, b_ip, b_mac) = get_fields(b);
 
             let cmp = match self.client_sort_column {
-                0 => a_name.cmp(b_name),
-                1 => a_ip.cmp(b_ip),
-                2 => a_mac.cmp(b_mac),
+                0 => a_name.cmp(&b_name),
+                1 => a_ip.cmp(&b_ip),
+                2 => a_mac.cmp(&b_mac),
                 _ => std::cmp::Ordering::Equal,
             };
+
             match self.client_sort_order {
                 SortOrder::Ascending => cmp,
                 SortOrder::Descending => cmp.reverse(),

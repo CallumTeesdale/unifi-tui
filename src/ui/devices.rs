@@ -162,33 +162,13 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
             let stats = app.state.device_stats.get(&device.id);
             let details = app.state.device_details.get(&device.id);
 
-            let cpu_text =
-                stats
-                    .and_then(|s| s.cpu_utilization_pct)
-                    .map_or("N/A".to_string(), |cpu| {
-                        let sparkline = match cpu {
-                            c if c >= 90.0 => "█",
-                            c if c >= 75.0 => "▇",
-                            c if c >= 50.0 => "▅",
-                            c if c >= 25.0 => "▃",
-                            _ => "▁",
-                        };
-                        format!("{}  {:.1}%", sparkline, cpu)
-                    });
+            let cpu_text = stats
+                .and_then(|s| s.cpu_utilization_pct)
+                .map_or("N/A".to_string(), |cpu| sparkline(cpu));
 
-            let memory_text =
-                stats
-                    .and_then(|s| s.memory_utilization_pct)
-                    .map_or("N/A".to_string(), |mem| {
-                        let sparkline = match mem {
-                            m if m >= 90.0 => "█",
-                            m if m >= 75.0 => "▇",
-                            m if m >= 50.0 => "▅",
-                            m if m >= 25.0 => "▃",
-                            _ => "▁",
-                        };
-                        format!("{}  {:.1}%", sparkline, mem)
-                    });
+            let memory_text = stats
+                .and_then(|s| s.memory_utilization_pct)
+                .map_or("N/A".to_string(), |mem| sparkline(mem));
 
             let network_text =
                 stats
@@ -261,6 +241,17 @@ fn render_device_table(f: &mut Frame, app: &mut App, area: Rect) {
         .highlight_symbol("➤ ");
 
     f.render_stateful_widget(table, area, &mut app.devices_table_state);
+}
+
+fn sparkline(mem: f64) -> String {
+    let sparkline = match mem {
+        m if m >= 90.0 => "█",
+        m if m >= 75.0 => "▇",
+        m if m >= 50.0 => "▅",
+        m if m >= 25.0 => "▃",
+        _ => "▁",
+    };
+    format!("{}  {:.1}%", sparkline, mem)
 }
 
 fn render_device_controls(f: &mut Frame, area: Rect) {
